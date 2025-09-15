@@ -1,0 +1,891 @@
+@extends('layout.default')
+@section('content')
+<!--Import PhotoSwipe Styles -->
+<!-- Import PhotoSwipe Styles -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.0/photoswipe.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/photoswipe/4.1.0/default-skin/default-skin.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/magnific-popup.js/1.1.0/magnific-popup.min.css" integrity="sha512-+EoPw+Fiwh6eSeRK7zwIKG2MA8i3rV/DGa3tdttQGgWyatG/SkncT53KHQaS5Jh9MNOT3dmFL0FjTY08And/Cw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-typeahead/2.11.2/jquery.typeahead.min.css" integrity="sha512-UKvJ8GWN7HSI41K3GUfcJInghVOhKi/w0pLNV/5lYluLW1IZPuXu0ANCFibdfp5SAY2CL0cZt6uYos8YqvV1/w==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<!-- Core CSS file -->
+<link href="{{asset('vendor/photoviewer/dist/photoviewer.min.css') }}" rel="stylesheet">
+<style>
+
+</style>
+<div class="container-fluid">
+    <div class="row page-titles mx-0">
+        <div class="col-sm-3 p-md-0">
+            <div class="welcome-text">
+                <h4>Farmer Plot Details</h4>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <input type="text" class="form-control" name="search" placeholder="Search...">
+        </div>
+        <div class="col-sm-6 p-md-0 justify-content-sm-end mt-2 mt-sm-0 d-flex">
+          @php
+
+
+$prev=\App\Models\FinalFarmer::select('id','farmer_plot_uniqueid')->where('onboarding_form','1')->where('id','<',$plot->id)->where('farmer_uniqueId','<',$plot->farmer_uniqueId)->orderBy('id','desc')->when(request(),function($q){
+
+return $q;
+})->first()??'';
+
+$next=\App\Models\FinalFarmer::select('id','farmer_plot_uniqueid')->where('onboarding_form','1')->where('id','>',$plot->id)->where('farmer_uniqueId','>',$plot->farmer_uniqueId)->orderBy('id','asc')->when(request(),function($q){
+
+return $q;
+  })->first()??'';
+          @endphp
+          @if($prev)
+          <a style="color: red;" href="{{ url('admin/farmer/approved/plot').'/'.$prev->farmer_plot_uniqueid}}" class="btn btn-sm"><i class="fa fa-arrow-left" aria-hidden="true"></i> Previous</a>
+          @endif
+          @if($next)
+          <a style="color: red;" href="{{ url('admin/farmer/approved/plot').'/'.$next->farmer_plot_uniqueid}}" class="btn btn-sm">Next <i class="fa fa-arrow-right" aria-hidden="true"></i></a>
+          @endif
+        </div>
+    </div>
+    <!-- row -->
+    <div class="row">
+        <div class="col-md-4">
+            <div class="row">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-sm">
+                                        <thead class="thead-primary">
+                                            <tr>
+                                                <th colspan="2" class="text-center">Farmer Info</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>Farmer Unique Id</td><td>{{$plot->farmer_plot_uniqueid}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Farmer Name</td><td>{{$plot->farmer_name}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Mobile Access</td><td>{{$plot->mobile_access}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Relationship owner</td><td>{{$plot->mobile_reln_owner}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Mobile</td><td>{{$plot->mobile}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Plot No.</td><td>{{$plot->plot_no}}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-sm">
+                                        <thead class="thead-primary">
+                                            <tr>
+                                                <th colspan="{{$plot->state_id == 36 ? '6' : '5'}}" class="text-center">Plot Info</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                          <tr>
+                                              <td>Total Plots</td><td colspan="{{$plot->state_id == 36 ? '3' : '2'}}">{{$plot->plot_no}}</td><td>Area of Plots (Acers)</td><td>{{ $plot->total_area_acres_of_guntha ? $plot->total_area_acres_of_guntha : $plot->total_plot_area}}</td>
+                                          </tr>
+                                            <tr>
+                                                <td>Plot No.</td>
+                                                @if($plot->state_id == 36)
+                                                    <td>Area in (A.G)</td>
+                                                @else
+                                                 <td>Area in Acres</td>
+                                                @endif
+                                                @if($plot->state_id == 36)
+                                                    <td>Area in Acres</td>
+                                                @endif
+                                                <td>Plot Owner</td>
+                                                <td>Survey No.</td>
+                                                <td class="d-none">Documents</td>
+                                                <td>Photos</td>
+                                            </tr>
+                                            <tr>
+                                                @php $color=''; @endphp
+                                                @if($plot->final_status_onboarding == 'Pending')
+                                                    @php $color = 'blue'; @endphp
+                                                @elseif($plot->final_status_onboarding == 'Approved')
+                                                    @php $color = 'green'; @endphp
+                                                @elseif($plot->final_status_onboarding == 'Rejected')
+                                                    @php $color = 'red'; @endphp
+                                                @endif
+                                                <td>{{$plot->plot_no}}&nbsp;<span class="dot{{$color}}"></span>&nbsp;{{$plot->land_ownership == 'Own' ? 'O' : 'L'}}</td>
+                                                @if($plot->state_id == 36)
+                                                        <td>{{$plot->area_in_acers}}</td>
+                                                        <td>{{$plot->convertedacres}}</td>
+                                                   @else
+                                                      <td>{{$plot->area_in_acers}}</td>
+                                                   @endif
+                                                <td>{{$plot->actual_owner_name}}</td>
+                                                <td>{{$plot->survey_no}}</td>
+                                                <td class="d-none">@if($plot->affidavit_tnc) <a href="{{url('admin/farmers/download/'.$plot->farmer_plot_uniqueid.'/'.'LEASED'.'/'.$plot->plot_no)}}" style="color: red;">Download</a> @else OWN @endif</td>
+                                                <td>
+                                                    <div class="plot-gallery d-flex">
+                                                    @forelse($plot->ApprvFarmerPlotImages()->where('plot_no',$plot->plot_no)->get() as $items)
+                                                    <a class="btn btn-sm p-0 popup-gallery" href="{{$items->path}}"><img src="{{asset('icons/icons8-photos-100.png')}}" class="w-32"></a>
+                                                    @empty
+                                                    @endforelse
+                                                    </div>
+                                                </td>
+                                            </tr>
+
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="card-footer p-0">
+                                <div class="row">
+                                    @can('carbon download')
+                                    <div class="col-6">
+                                        <a class="btn text-success btn-sm" href="{{url('admin/farmers/approved/download/'.$plot->farmer_uniqueId.'/'.'CARBON'.'/'.$plot->plot_no)}}"><i class="fa fa-download" aria-hidden="true"></i> Carbon Consent</a>
+                                    </div>
+                                    @endcan
+                                    @can('Download Excel')
+                                    <div class="col-6">
+                                        <a class="btn text-success btn-sm" href="{{url('admin/download/approved/file'.'/?type=onboarding&file=excel&unique='.$plot->farmer_uniqueId)}}"><i class="fa fa-download" aria-hidden="true"></i> Download Excel</a>
+                                    </div>
+                                    @endcan
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-sm">
+                                        <thead class="thead-primary">
+                                            <tr>
+                                                <th colspan="2" class="text-center">Location Info</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>State</td><td>{{$plot->state}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>District</td><td>{{$plot->district}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Taluka</td><td>{{$plot->taluka}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Panchayat</td><td>{{$plot->panchayat}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Village</td><td>{{$plot->village}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Latitude</td><td>{{$plot->latitude}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Logitude</td><td>{{$plot->longitude}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="align-top">Remarks</td><td>{{$plot->remarks}}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-sm">
+                                        <thead class="thead-primary">
+                                            <tr>
+                                                <th colspan="2" class="text-center">Executive Details</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>Name</td>
+                                                <td>
+                                                @if(Auth::user()->hasRole('SuperAdmin'))
+                                                    <a  target="_blank"  href="{{Route('admin.users.edit',$plot->surveyor_id)}}">{{$plot->surveyor_name}}</a>
+                                                @else
+                                                    {{$plot->surveyor_name}}
+                                                @endif
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>Mobile No</td><td>{{$plot->surveyor_mobile}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Email ID</td><td>{{$plot->surveyor_email}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Date of Survey</td><td>{{$plot->date_survey}}</td>
+                                            </tr>
+                                            <tr>
+                                                <td>Time of Survey</td><td>{{ $plot->time_survey }} </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div><!--executive detail-->
+                </div>
+        </div>
+        <div class="col-md-4">
+            <div class="row">
+                <div class="col-12">
+                  <div class="card" style="margin-right: -24px;margin-left: -24px;">
+                      <div class="card-body" style="padding-left: 23px;padding-top: 11px;padding-right: 2px;">
+                        <div class="mb-2 mt-1" style="background-color: #450b5a;width: 107%;margin-left: -21px;height: 43px;">
+                          <p class="text-center text-white pt-2"><b>CURRENT STATUS</b></p>
+                        </div>
+                        <div class="mb-1">
+                            <div class="row mb-3">
+                              <a style="width: 30%;" href="{{url('admin/farmer/approved/plot/'.$plot->farmer_plot_uniqueid)}}" target="_blank" class="active btn btn-status{{$plot->onboarding_form ? '-done' : ' disabled'}} m-b-0 mr-3"><span class="btn-txt">Farmer Onboarding</span></a>
+                              <a style="width: 26%;" href="{{url('admin/farmer/approved/plot/'.$plot->farmer_plot_uniqueid)}}" target="_blank" class="CropDataShow btn btn-status{{$plot->cropdata_form ? '-done' : ' disabled'}} m-b-0 mr-3"><span class="btn-txt">Crop data</span></a>
+                              <a style="width: 31%;" href="{{url('admin/approved/pipeinstallation/plot/'.$plot->farmer_plot_uniqueid)}}" target="_blank" class="btn btn-status{{$plot->pipe_form ? '-done' : ' disabled'}} m-b-0 mr-3"><span class="btn-txt">Pipes Installations</span></a>
+                            </div>
+                            <div class="row mb-3">
+                              <a style="width: 30%;" href="{{url('admin/approved/awd-captured/plot/'.$plot->farmer_plot_uniqueid)}}" target="_blank" class="btn btn-status{{$plot->awd_form ? '-done' : ' disabled'}} m-b-0 mr-3"><span class="btn-txt">AWD Captured</span></a>
+                              <a style="width: 26%;" class="FarmerBenefits btn btn-status{{$plot->benefit_form ? '-done' : ' disabled'}} m-b-0 mr-3"><span class="btn-txt">Benefits</span></a>
+                              <a style="width: 30%;" class="btn btn-status{{$plot->other_form ? '-done' : ' disabled'}} m-b-0"><span class="btn-txt">Others</span></a>
+                            </div>
+                            @if(!Auth::user()->hasRole('Viewer'))
+                            <div class="row">
+                                    <a style="width: 30%;" href="{{url('admin/farmers/approved/plot/edit/'.$plot->id.'/'.$plot->farmer_plot_uniqueid)}}"
+                                      class="btn btn-info m-b-0 mr-3 EditBtn d-none"
+                                       @if($plot->status_onboarding == 'Approved')
+                                        disabled
+                                      @elseif($plot->status_onboarding == 'Rejected')
+                                        disabled
+                                      @else
+                                      @endif
+                                    >EDIT</a>
+                                <!-- end button end -->
+                              <button style="width: 26%;"
+                                  data-toggle="modal" data-target="#ApproveModal"
+                                  class="btn btn-success ApproveBtn m-b-0 mr-3 d-none" {{-- below code is to disable button if --}}
+                                    >
+                                    Approve
+                                    <i class="fa fa-spinner fa-spin Aspinner"></i>
+                              </button>
+                              <!-- approve end -->
+                              <button style="width: 30%;" data-toggle="modal" data-target="#reject_remark"
+                                    class="btn btn-danger RejectBtn m-b-0 mr-3 d-none">
+                                    Reject
+                              </button>
+                            </div>
+                            @endif
+                            <!-- end final approve module -->
+                          </div><!-- button end -->
+                      </div>
+                  </div>
+                </div>
+                <!-- pipe installtion start -->
+                @if($PipeInstallation->count()>0)
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title bg-primary text-white p-3 text-center">Pipe Installations</h5>
+                            <ul class="nav nav-pills">
+                                <li class="nav-item"><a href="#plot-{{$PipeInstallation->plot_no}}" class="nav-link active" data-toggle="tab" aria-expanded="false">{{$PipeInstallation->farmer_plot_uniqueid}}</a></li>
+                            </ul>
+                            <div class="tab-content">
+                                <div id="plot-{{$PipeInstallation->plot_no}}" class="tab-pane active pt-2">
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered table-sm">
+                                            <tbody>
+                                                <tr><td>Plot unique Id</td><td>{{$PipeInstallation->farmer_plot_uniqueid}}</td></tr>
+                                                <tr><td>Plot Area(Onboarding)</td><td>{{$PipeInstallation->area_in_acers}}</td></tr>
+                                                <tr><td>Plot Area(Google map)</td><td>{{$PipeInstallation->plot_area}}</td></tr>
+                                                <tr><td>No. of pipes Installed</td><td>{{$PipeInstallation->installed_pipe}}</td></tr>
+                                                @if($PipesLocation)
+                                                    @foreach($PipesLocation as $pipe)
+                                                      <tr><td>Pipe {{$pipe->pipe_no}} Distance</td>
+                                                        <td>
+                                                          <div class="plot-gallery d-flex float-left">
+                                                              <a class="btn btn-sm p-0 popup-gallery" href="{{$pipe->images}}"><img src="{{asset('icons/icons8-photos-100.png')}}" class="w-32"></a>
+                                                          </div>
+                                                          <div class="d-inline float-right mt-2">{{$pipe->distance }}M</div>
+                                                        </td>
+                                                      </tr>
+                                                      <tr>
+                                                          <td>Date & Time of Installations</td>
+                                                          <td>{{$pipe->date }}, {{$pipe->time }}</td>
+                                                      </tr>
+                                                    @endforeach
+                                                @endif
+                                                {{--<tr><td>Pipe 2 Distance</td><td>{{$PipeInstallation->no_pipe_req}} M</td></tr>
+                                                <tr><td>Date & Time of Installations</td><td>{{ \Carbon\Carbon::createFromFormat('d/m/Y', $PipeInstallation->date_time)->format('d-m-Y')}}</td></tr> --}}
+                                                @if(Auth::user()->hasRole('SuperAdmin'))
+                                                <tr><td>Name of Surveyor</td><td><a  target="_blank"  href="{{Route('admin.users.edit',$PipeInstallation->surveyor_id)}}">{{$PipeInstallation->surveyor_name}}</a></td></tr>
+                                                @else
+                                                <tr><td>Name of Surveyor</td><td>{{$PipeInstallation->surveyor_name}}</td></tr>
+                                                @endif
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                @endif
+
+                <!--benefit data-->
+                @if($plot->BenefitsData->count()>0)
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title bg-primary text-white p-3 text-center">Farmer Benefits</h5>
+                            <ul class="nav nav-pills">
+                            @foreach($plot->BenefitsData as $data)
+                                <li class="nav-item"><a href="#benefit-{{$loop->index+1}}" class="nav-link {{$loop->first?'active':''}}" data-toggle="tab" aria-expanded="false">Benefit {{$loop->index+1}}</a></li>
+                            @endforeach
+                            </ul>
+                            <div class="tab-content">
+                                @foreach($plot->BenefitsData as $items)
+                                <div id="benefit-{{$loop->index+1}}" class="tab-pane pt-2 {{$loop->first?'active':''}}">
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered table-sm">
+                                            <tbody>
+                                                <tr><td>Farmer Unique ID</td><td>{{$items->farmer_uniqueId}}</td></tr>
+                                                <tr><td>Total Area in Acres</td><td>{{$items->total_plot_area}}</td></tr>
+                                                <tr><td>Season</td><td>{{$items->seasons}}</td></tr>
+                                                <tr><td>Type of Benefit</td><td>{{$items->benefit}}</td></tr>
+
+                                                @if(Auth::user()->hasRole('SuperAdmin'))
+                                                <tr><td>Surveyor name</td><td><a target="_blank" href="{{Route('admin.users.edit',$items->surveyor_id)}}">{{$items->surveyor_name}}</a></td></tr>
+                                                @else
+                                                 <tr><td>Surveyor name</td><td>{{$items->surveyor_name}}</td></tr>
+                                                @endif
+                                                <tr><td>Survey Date/Time</td><td>{{ $items->created_at->toDayDateTimeString() }}</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                @endif
+                <!--benefit data end-->
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="row">
+              <!-- pipe image -->
+                @if($PipesLocation)
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title bg-primary text-white p-3 text-center">Pipe Photos</h5>
+                            <!-- All plot pipe images -->
+                            <div id="plotPipeImg" class="carousel slide" data-ride="carousel">
+                                <ol class="carousel-indicators">
+                                    @foreach($PipesLocation as $pipe)
+                                    <li data-target="#plotPipeImg" data-slide-to="{{$loop->index}}" class="{{$loop->first?'active':''}}"><img class="d-block w-100 img-fluid" src="{{$pipe->images}}" alt=""></li>
+                                    @endforeach
+                                </ol>
+                                <div class="carousel-inner">
+                                    @foreach($PipesLocation as $pipeImage)
+                                    <div class="carousel-item plotPipeImg  {{$loop->first?'active':''}}">
+                                        <figure itemprop="associatedMedia" itemscope itemtype="http://schema.org/ImageObject">
+                                            <a href="{{$pipeImage->images}}" class="pipeImgclick" data-caption="Plot no. {{$pipeImage->pipe_no}}<br><em class='text-muted'>Pipe Image</em>" data-width="1200" data-height="900" itemprop="contentUrl">
+                                              <img class="d-block w-100" height="350" src="{{$pipeImage->images}}" itemprop="thumbnail" alt="plot image">
+                                            </a>
+                                          </figure>
+                                    </div>
+                                    @endforeach
+                                </div>
+                                <a class="carousel-control-prev" href="#plotPipeImg" data-slide="prev"><span class="carousel-control-prev-icon"></span> <span
+                                        class="sr-only">Previous</span> </a>
+                                <a class="carousel-control-next" href="#plotPipeImg" data-slide="next"><span
+                                        class="carousel-control-next-icon"></span>
+                                    <span class="sr-only">Next</span></a>
+                            </div>
+                            <!-- plot pipe image end-->
+                        </div>
+                    </div>
+                </div>
+                @endif
+                <!--benfit image-->
+                @if($farmerbenefitimg->count()>0)
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title bg-primary text-white p-3 text-center">Benefits Photos</h5>
+                            <!-- All plot images -->
+                            <div id="BenefitImg" class="carousel slide" data-ride="carousel">
+                                <ol class="carousel-indicators">
+                                    @foreach($farmerbenefitimg as $items)
+                                    <li data-target="#BenefitImg" data-slide-to="{{$loop->index}}" class="{{$loop->first?'active':''}}"><img class="d-block w-100 img-fluid" src="{{ asset('public/storage/'.$items->path)}}" alt=""></li>
+                                    @endforeach
+                                </ol>
+                                <div class="carousel-inner">
+                                    @foreach($farmerbenefitimg as $items)
+                                    <div class="carousel-item benefitsimg {{$loop->first?'active':''}}">
+                                        <figure itemprop="associatedMedia" itemscope itemtype="http://schema.org/ImageObject">
+                                            <a href="{{$items->path}}" class="benefitImgclick" data-caption="Benefit Image" data-width="1200" data-height="900" itemprop="contentUrl">
+                                              <img class="d-block w-100" height="350" src="{{$items->path}}" itemprop="thumbnail" alt="plot image">
+                                            </a>
+                                        </figure>
+                                       {{-- <img class="d-block w-100"  height="350" src="{{ $items->path }}" alt="">  --}}
+                                        <!--<img class="d-block w-100"  height="350" src="{{ asset('public/storage/'.$items->path)}}" alt="">-->
+                                    </div>
+                                    @endforeach
+                                </div>
+                                <a class="carousel-control-prev" href="#BenefitImg" data-slide="prev"><span class="carousel-control-prev-icon"></span> <span
+                                        class="sr-only">Previous</span> </a><a class="carousel-control-next" href="#BenefitImg" data-slide="next"><span
+                                        class="carousel-control-next-icon"></span>
+                                    <span class="sr-only">Next</span></a>
+                            </div>
+                            <!-- plot images end-->
+                        </div>
+                    </div>
+                </div>
+                @endif
+                <!--benefit image end-->
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h3>Geo-fencing & Pipe location</h3>
+                            <!--<button class="btn info btn-info text-white OpenMap">Open Map</button>-->
+                              <div id="map" style="width: 100%; height:350px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+@stop
+@section('scripts')
+<script type="text/javascript" src="https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/markerclusterer.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/typeahead.js/0.10.3/typeahead.bundle.min.js" integrity="sha512-E4rXB8fOORHVM/jZYNCX2rIY+FOvmTsWJ7OKZOG9x/0RmMAGyyzBqZG0OGKMpTyyuXVVoJsKKWYwbm7OU2klxA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="{{asset('vendor/photoviewer/dist/photoviewer.min.js') }}"></script>
+<script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>
+<script src="{{asset('js/yepnope.min.js') }}"></script>
+
+<script src="https://maps.googleapis.com/maps/api/js?key={{config('map.map_key')}}&libraries=geometry,places&amp;ext=.js"></script>
+<!--AIzaSyAqvsVxUyfv5KJl0cDoyhEUPtGm5YcVEuM-->
+
+
+
+<script>
+$(document).ready(function() {
+  // var test = $('#map-container').hasClass('mapit');
+  var test = window.google != undefined;
+  $('.OpenMap').click(function() {
+    //   $('.OpenMap').addClass('d-none');
+    $gmap = true;
+    $mapit = false;
+    yepnope({  
+		    test : test,
+		    yep: {
+		    	"alreadyLoaded":"timeout=1!"
+		      //   "googleMap": "https://maps.googleapis.com/maps/api/js?key="+'{{config('map.map_key')}}'+"&libraries=geometry,places&amp;ext=.js"
+		      //"googleMap": "https://maps.googleapis.com/maps/api/js?key=AIzaSyAqvsVxUyfv5KJl0cDoyhEUPtGm5YcVEuM&libraries=geometry,places&amp;ext=.js"
+		    },
+		    nope: {
+		  //  	"googleMap": "https://maps.googleapis.com/maps/api/js?key="+'{{config('map.map_key')}}'+"&libraries=geometry,places&amp;ext=.js"
+		  //"googleMap": "https://maps.googleapis.com/maps/api/js?key=AIzaSyAqvsVxUyfv5KJl0cDoyhEUPtGm5YcVEuM&libraries=geometry,places&amp;ext=.js"
+		    },
+		    callback: {
+		    	"alreadyLoaded": function() {
+		    		initMap();
+		    	}
+		    },			
+			complete : function(url, result, key){
+			    
+		    }
+		});
+	});
+    
+});
+
+function initMap() {
+	var polygon={!!json_encode($Polygon)!!}||[];
+	var pipe_location={!! json_encode($PipesLocation) !!}||[];
+	if(polygon.length>0){
+		polygon.map(function(v,i){
+			v.lat=parseFloat(v.lat);
+			v.lng=parseFloat(v.lng);
+			return v;
+		});
+	}
+	const map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 17,
+        center: polygon[0]||{ lat: {!!$plot->latitude!!}, lng: {!! $plot->longitude!!} },
+        mapTypeId: "hybrid",
+        scrollwheel: true,
+      });
+	const path = new google.maps.Polygon({
+		paths: polygon,
+		strokeColor: "#FF0000",
+		strokeOpacity: 0.8,
+		strokeWeight: 2,
+		fillColor: "#FF0000",
+		fillOpacity: 0.35,
+	  });
+	  path.setMap(map);
+	 //pipe marker
+	if(pipe_location.length>0){
+		for (var i = 0; i < pipe_location.length; i++) {
+			var marker = new google.maps.Marker({
+				position: { lat: parseFloat(pipe_location[i].lat), lng: parseFloat(pipe_location[i].lng) },
+				map,
+				title: 'Pipe No: '+pipe_location[i].pipe_no,
+        icon: {
+          url: "http://maps.google.com/mapfiles/ms/icons/yellow-dot.png"
+        }
+			});
+		}
+	}
+}
+
+initMap();
+
+
+(function(){
+    'use strict';
+    //search
+
+        $('input[name="search"]').typeahead({
+            hint: true,
+            highlight: true,
+            minLength: 1,
+            limit:10
+        },{
+            display: 'farmer_uniqueId',
+            source:function (query, process) {
+                return $.get('{!! url('admin/farmer/approved/search') !!}', { query: query }, function (data) {
+                    var matches = [];
+                    $.each(data, function(i, str) {
+                        matches.push({
+                            id:str.id,
+                            farmer_uniqueId:str.farmer_plot_uniqueid,
+                            value: str.surveyor_name,
+                            status:str.final_status_onboarding
+                        });
+                    });
+                    return process(matches);
+                });
+            },
+            templates: {
+                suggestion: function(data) {
+                    return '<div><a href="{{ url('admin/farmer/approved/plot')}}/'+data.farmer_uniqueId+'"><strong>' + data.farmer_uniqueId + '</strong> - ' + data.status + '</a></div>';
+                }
+            }
+        });
+
+
+    $('.plot-gallery a').click(function (e) {
+        e.preventDefault();
+        var items = [],
+            options = {
+                index: $(this).index(),
+                initModalPos:{right:1,top:0}
+            };
+        $(this).parent().find('a').each(function(){
+            let src = $(this).attr('href');
+            items.push({
+                src: src
+            });
+        });
+        new PhotoViewer(items,options);
+    });
+    $('.plotPipeImg .pipeImgclick').click(function(e){
+        e.preventDefault();
+        var items = [],
+            options = {
+                index: $(this).parents('.carousel-item').index(),
+                initModalPos:{right:1,top:0}
+            };
+        $('#plotPipeImg').find('.pipeImgclick').each(function(){
+            let src = $(this).attr('href');
+            items.push({
+                src: src
+            });
+        });
+        new PhotoViewer(items,options);
+    });
+     $('.benefitsimg .benefitImgclick').click(function(e){
+        e.preventDefault();
+        var items = [],
+            options = {
+                index: $(this).parents('.carousel-item').index(),
+                initModalPos:{right:1,top:0}
+            };
+        $('.benefitsimg').find('.benefitImgclick').each(function(){
+            let src = $(this).attr('href');
+            items.push({
+                src: src
+            });
+        });
+        new PhotoViewer(items,options);
+      });
+
+})($);
+
+$("#onboarding").click(function() {
+    $(".SubmitApproval").prop('disabled', false);
+});
+
+$(".SubmitApproval").click(function() {
+    $('.Aspinner').removeClass('d-none');
+    var plots = [];
+    $.each($("input[name='onboarding']:checked"), function(){
+        var ApproveComment  = $('#approve_comment'+$(this).val()).val();
+      plots.push({'PlotNo' : $(this).val(), 'ApproveComment' :ApproveComment});
+    });
+    Swal.fire({
+		  title: 'Are you sure?',
+		  text: "You won't be able to revert this!",
+		  type: 'warning',
+		  showCancelButton: true,
+		  confirmButtonColor: '#3085d6',
+		  cancelButtonColor: '#d33',
+		  confirmButtonText: 'Yes, Approve it!'
+		}).then((result) => {
+		  if (result.value == 1) {
+
+                $.ajax({
+                  type:'post',
+                  url:"{{url('admin/farmers/status/')}}/"+'onboarding/{{$plot->farmer_uniqueId}}',
+                  data: {_token:'{{csrf_token()}}',method:'post',plots:plots,TotalPlot:"{{$plot->no_of_plots}}"},
+                  success:function(data){
+                    $('.Aspinner').addClass('d-none');
+                    $(".SubmitApproval").prop('disabled', false);
+                    //jQuery.noConflict(); //Furthermore, some plugins cause errors too, in this case add
+                    $('#ApproveModal').modal('hide');
+                    location.reload();
+                    toastr.success("", data.message, {
+                          timeOut: 5000,closeButton: !0,debug: !1,newestOnTop: !0,
+                          progressBar: !0,positionClass: "toast-bottom-center",preventDuplicates: !0,
+                          onclick: null,showDuration: "300",hideDuration: "1000",extendedTimeOut: "1000",
+                          showEasing: "swing",hideEasing: "linear",showMethod: "fadeIn",
+                          hideMethod: "fadeOut",tapToDismiss: !1
+                      })
+                  },
+                  error: function (jqXHR, textStatus, errorThrown) {
+                      $('.Aspinner').addClass('d-none');
+                    $(".SubmitApproval").prop('disabled', false);
+                    var data = jqXHR.responseJSON.farmer;
+                    toastr.error("", "Something went wrong", {
+                          positionClass: "toast-bottom-center",timeOut: 5000,closeButton: !0,
+                          debug: !1,newestOnTop: !0,progressBar: !0,
+                          preventDuplicates: !0,onclick: null,showDuration: "300",
+                          hideDuration: "1000",extendedTimeOut: "1000",showEasing: "swing",
+                          hideEasing: "linear",showMethod: "fadeIn",hideMethod: "fadeOut",
+                          tapToDismiss: !1
+                      })
+                  }
+              });//   ajax end
+		  }//if end of confirmation
+		  $('.Aspinner').addClass('d-none');
+          $(".SubmitApproval").prop('disabled', false);
+		})//swal end
+});
+
+ $(".FarmerReject").click(function() {
+    var plotno = $(this).attr("data-rejectplot");
+    var reasons = $('#reasons'+plotno+' option:selected').val();
+    var rejectcomment = $('#reject_comment'+plotno).val();
+    $(".FarmerReject").prop('disabled', true);
+    $('#Rspinner'+plotno).removeClass('d-none');
+    if(!reasons.length > 0){
+        $('#Rspinner'+plotno).addClass('d-none');
+        $(".FarmerReject").prop('disabled', false);
+        return false;
+    }
+    if(!$('#plotno' + plotno).is(":checked")){
+        $('#Rspinner'+plotno).addClass('d-none');
+        $(".FarmerReject").prop('disabled', false);
+        return false;
+    }
+        Swal.fire({
+		  title: 'Are you sure?',
+		  text: "You won't be able to revert this!",
+		  type: 'warning',
+		  showCancelButton: true,
+		  confirmButtonColor: '#3085d6',
+		  cancelButtonColor: '#d33',
+		  confirmButtonText: 'Yes, Reject it!'
+		}).then((result) => {
+		  if (result.value == 1) {
+
+                $.ajax({
+                  type:'post',
+                  url:"{{url('admin/farmers/status/')}}/"+'reject'+'/'+'{{$plot->farmer_uniqueId}}',
+                  data: {_token:'{{csrf_token()}}',method:'post',plotno:plotno,reasons:reasons,rejectcomment:rejectcomment,},
+                  success:function(data){
+                      $('#Rspinner'+plotno).addClass('d-none');
+                    location.reload();
+                    toastr.success("", "Farmer rejected", {
+                          timeOut: 5000,closeButton: !0,debug: !1,newestOnTop: !0,
+                          progressBar: !0,positionClass: "toast-bottom-center",preventDuplicates: !0,
+                          onclick: null,showDuration: "300",hideDuration: "1000",extendedTimeOut: "1000",
+                          showEasing: "swing",hideEasing: "linear",showMethod: "fadeIn",
+                          hideMethod: "fadeOut",tapToDismiss: !1
+                      })
+                  },
+                  error: function (jqXHR, textStatus, errorThrown) {
+                      $(".FarmerReject").prop('disabled', false);
+                      $('#Rspinner'+plotno).addClass('d-none');
+                    var data = jqXHR.responseJSON.farmer;
+                    toastr.error("", "Something went wrong", {
+                          positionClass: "toast-bottom-center",timeOut: 5000,closeButton: !0,
+                          debug: !1,newestOnTop: !0,progressBar: !0,
+                          preventDuplicates: !0,onclick: null,showDuration: "300",
+                          hideDuration: "1000",extendedTimeOut: "1000",showEasing: "swing",
+                          hideEasing: "linear",showMethod: "fadeIn",hideMethod: "fadeOut",
+                          tapToDismiss: !1
+                      })
+                  }
+              });//ajax end
+		  }//if end of confirmation
+		  $(".FarmerReject").prop('disabled', false);
+          $('#Rspinner'+plotno).addClass('d-none');
+		})//swal end
+});
+
+
+
+
+// process for final approval js
+$("#Finalonboarding").click(function() {
+    $(".FinalSubmitApproval").prop('disabled', false);
+});
+
+$(".FinalSubmitApproval").click(function() {
+    $('.FAspinner').removeClass('d-none');
+    var plots = [];
+    $.each($("input[name='Finalonboarding']:checked"), function(){
+        var FinalApproveComment  = $('#Finalapprove_comment'+$(this).val()).val();
+      plots.push({'PlotNo' : $(this).val(), 'FinalApproveComment' :FinalApproveComment});
+    });
+    Swal.fire({
+		  title: 'Are you sure?',
+		  text: "You won't be able to revert this!",
+		  type: 'warning',
+		  showCancelButton: true,
+		  confirmButtonColor: '#3085d6',
+		  cancelButtonColor: '#d33',
+		  confirmButtonText: 'Yes, Approve it!'
+		}).then((result) => {
+		  if (result.value == 1) {
+
+                $.ajax({
+                  type:'post',
+                  url:"{{url('admin/farmers/final/status/')}}/"+'finalonboarding/{{$plot->farmer_uniqueId}}',
+                  data: {_token:'{{csrf_token()}}',method:'post',plots:plots,TotalPlot:"{{$plot->no_of_plots}}"},
+                  success:function(data){
+                    $('.FAspinner').addClass('d-none');
+                    $(".FinalSubmitApproval").prop('disabled', false);
+                    //jQuery.noConflict(); //Furthermore, some plugins cause errors too, in this case add
+                    $('#FinalApproveModal').modal('hide');
+                    location.reload();
+                    toastr.success("", data.message, {
+                          timeOut: 5000,closeButton: !0,debug: !1,newestOnTop: !0,
+                          progressBar: !0,positionClass: "toast-bottom-center",preventDuplicates: !0,onclick: null,showDuration: "300",hideDuration: "1000",extendedTimeOut: "1000",
+                          showEasing: "swing",hideEasing: "linear",showMethod: "fadeIn",hideMethod: "fadeOut",tapToDismiss: !1
+                      })
+                  },
+                  error: function (jqXHR, textStatus, errorThrown) {
+                      $('.FAspinner').addClass('d-none');
+                    $(".FinalSubmitApproval").prop('disabled', false);
+                    var data = jqXHR.responseJSON.farmer;
+                    toastr.error("", "Something went wrong", {
+                          positionClass: "toast-bottom-center",timeOut: 5000,closeButton: !0,
+                          debug: !1,newestOnTop: !0,progressBar: !0,preventDuplicates: !0,onclick: null,showDuration: "300",
+                          hideDuration: "1000",extendedTimeOut: "1000",showEasing: "swing",hideEasing: "linear",showMethod: "fadeIn",hideMethod: "fadeOut",
+                          tapToDismiss: !1
+                      })
+                  }
+              });//   ajax end
+		  }//if end of confirmation
+		  $('.FAspinner').addClass('d-none');
+          $(".FinalSubmitApproval").prop('disabled', false);
+		})//swal end
+});
+
+$(".FinalFarmerReject").click(function() {
+   var plotno = $(this).attr("data-Finalrejectplot");
+   var reasons = $('#Finalreasons'+plotno+' option:selected').val();
+   var rejectcomment = $('#Finalreject_comment'+plotno).val();
+
+   $(".FinalFarmerReject").prop('disabled', true);
+   $('#FRspinner'+plotno).removeClass('d-none');
+   if(!reasons.length > 0){
+       $('#FRspinner'+plotno).addClass('d-none');
+       $(".FinalFarmerReject").prop('disabled', false);
+       return false;
+   }
+   if(!$('#Finalplotno' + plotno).is(":checked")){
+       $('#FRspinner'+plotno).addClass('d-none');
+       $(".FinalFarmerReject").prop('disabled', false);
+       return false;
+   }
+       Swal.fire({
+     title: 'Are you sure?',
+     text: "You won't be able to revert this!",
+     type: 'warning',
+     showCancelButton: true,
+     confirmButtonColor: '#3085d6',
+     cancelButtonColor: '#d33',
+     confirmButtonText: 'Yes, Reject it!'
+   }).then((result) => {
+     if (result.value == 1) {
+
+               $.ajax({
+                 type:'post',
+                 url:"{{url('admin/farmers/final/status/')}}/"+'finalreject'+'/'+'{{$plot->farmer_uniqueId}}',
+                 data: {_token:'{{csrf_token()}}',method:'post',plotno:plotno,reasons:reasons,rejectcomment:rejectcomment,},
+                 success:function(data){
+                     $('#Rspinner'+plotno).addClass('d-none');
+                   location.reload();
+                   toastr.success("", "Farmer rejected", {
+                         timeOut: 5000,closeButton: !0,debug: !1,newestOnTop: !0,
+                         progressBar: !0,positionClass: "toast-bottom-center",preventDuplicates: !0,
+                         onclick: null,showDuration: "300",hideDuration: "1000",extendedTimeOut: "1000",
+                         showEasing: "swing",hideEasing: "linear",showMethod: "fadeIn",
+                         hideMethod: "fadeOut",tapToDismiss: !1
+                     })
+                 },
+                 error: function (jqXHR, textStatus, errorThrown) {
+                     $(".FarmerReject").prop('disabled', false);
+                     $('#Rspinner'+plotno).addClass('d-none');
+                   var data = jqXHR.responseJSON.farmer;
+                   toastr.error("", "Something went wrong", {
+                         positionClass: "toast-bottom-center",timeOut: 5000,closeButton: !0,
+                         debug: !1,newestOnTop: !0,progressBar: !0,
+                         preventDuplicates: !0,onclick: null,showDuration: "300",
+                         hideDuration: "1000",extendedTimeOut: "1000",showEasing: "swing",
+                         hideEasing: "linear",showMethod: "fadeIn",hideMethod: "fadeOut",
+                         tapToDismiss: !1
+                     })
+                 }
+             });//ajax end
+     }//if end of confirmation
+     $(".FinalFarmerReject").prop('disabled', false);
+         $('#FRspinner'+plotno).addClass('d-none');
+   })//swal end
+});
+
+</script>
+@stop

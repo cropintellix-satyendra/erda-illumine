@@ -1,0 +1,13 @@
+1. need to collect data from surveypr to final_farmer table instead of farmers.
+
+2. ALTER TABLE `organizations` ADD `state_id` INT(10) NULL AFTER `name`;
+
+
+
+ALTER TABLE `final_farmers` ADD `plotowner_sign_old` VARCHAR(255) NULL AFTER `plotowner_sign`;
+
+ALTER TABLE `final_farmers` ADD `farmer_photo_old` VARCHAR(255) NULL AFTER `farmer_photo`;
+
+ALTER TABLE `final_farmers` ADD `aadhaar_photo_old` VARCHAR(255) NULL AFTER `aadhaar_photo`;
+
+ALTER TABLE `final_farmers` ADD `others_photo_old` VARCHAR(255) NULL AFTER `others_photo`;

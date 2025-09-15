@@ -1,0 +1,211 @@
+/* ===============================
+Theme Skin
+================================== */
+.form-control {
+    border-radius: 0.25rem;
+}
+.btn {
+    border-radius: 0.25rem;
+}
+.card{
+border-radius: 0.25rem;
+}
+.page-titles {
+    margin-bottom: 0px; 
+}
+[data-sidebar-style="full"][data-layout="vertical"] .deznav .metismenu > li > a {
+    border-radius: 0.25rem;
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+}
+[data-sidebar-style="full"][data-layout="vertical"] .deznav .metismenu > li {
+    padding-left: 0px;
+}
+.badge {
+    border-radius: 0.25rem !important;
+}
+.first-form {
+    border-radius: 0.25rem;
+}
+.farmer-filter .select2-container--default .select2-selection--single {
+    border-radius: 0.25rem;
+}
+.nav-pills .nav-link {
+    border-radius: 0.25rem;
+}
+.w-32{width: 32px !important;}
+@media (min-width: 576px){
+    .farmer-filter .col-sm-2{
+        /*max-width:10%;*/    
+    }
+}
+.form-control {
+    border-radius: 0.25rem;
+}
+.form-filter .select2-container--default .select2-selection--single .select2-selection__rendered,
+.form-filter input{
+    font-size: 14px;
+}
+#example3  td {
+    font-size: 14px;
+}  
+.twitter-typeahead .tt-query,
+.twitter-typeahead .tt-hint {
+    margin-bottom: 0;
+}
+
+.twitter-typeahead .tt-hint
+{
+    display: none;
+}
+
+.tt-menu,.tt-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1000;
+    display: none;
+    float: left;
+    min-width: 160px;
+    padding: 5px 0;
+    margin: 2px 0 0;
+    list-style: none;
+    font-size: 14px;
+    background-color: #ffffff;
+    border: 1px solid #cccccc;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    -webkit-box-shadow: 0 6px 12px rgba(0, 0, 0, 0.175);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.175);
+    background-clip: padding-box;
+    cursor: pointer;
+}
+
+.tt-suggestion {
+    display: block;
+    padding: 3px 20px;
+    clear: both;
+    font-weight: normal;
+    line-height: 1.428571429;
+    color: #333333;
+    white-space: nowrap;
+}
+
+.tt-suggestion:hover,
+.tt-suggestion:focus {
+    color: #ffffff;
+    text-decoration: none;
+    outline: 0;
+    background-color: #428bca;
+}
+
+.mfp-title {
+    text-align: center;
+}
+.mfp-figure:after {display: none;}
+.dotblue {
+      height: 6px;
+      width: 6px;
+      background-color: #1ce9a7;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .dotgreen {
+      height: 6px;
+      width: 6px;
+      background-color: green;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .dotred {
+      height: 6px;
+      width: 6px;
+      background-color: red;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    
+ @media (min-width: 1200px) {
+  #countBoxRow {
+    display: grid;
+    grid-template-columns: 110px 110px 110px 110px 110px 110px 110px;
+    justify-content: space-evenly;
+    column-gap: 5px;
+    
+  }
+}
+
+@media(min-width:1200px) {
+  .countBox {
+    height: 124px;
+    width: 134px;
+    
+  }
+}
+
+
+@media(min-width: 1200px) {
+  .t-font {
+    font-size: 20px !important;
+    margin-top: 5px;
+  }
+}
+
+
+ @media(min-width: 1200px) {
+  .tot-font {
+    font-size: 14px !important;
+  }
+} 
+@media(min-width:1200px){
+  .a-font{
+    font-size: 12px !important;
+  }
+}
+
+
+
+
+@media(min-width:1500px) {
+  #countBoxRow {
+    display: grid;
+    grid-template-columns:140px 140px 140px 140px 140px 140px 140px;
+    justify-content: space-evenly;
+    column-gap: 1px !important;
+    padding-left: 0px !important;
+    padding-right: 0px !important;
+   
+
+  }
+}
+@media(min-width:1500px){
+  .r-m{
+    margin-left: 10px;
+  }
+}
+
+@media(min-width:1500px) {
+  .countBox {
+    width: 160px !important;
+    height: 158px !important;
+  }
+}
+
+@media(min-width:1500px){
+  .countBox1{
+     justify-self: left !important;
+  }
+}
+
+@media(min-width:1500px) {
+  .t-font {
+    font-size: 22px !important;
+    margin-top: 11px;
+  }
+
+  .tt-font {
+    font-size: 19px!important;
+    margin-top:15px;
+  }
+
+}

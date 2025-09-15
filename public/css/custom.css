@@ -1,0 +1,735 @@
+/* ===============================
+Theme Skin
+================================== */
+.form-control {
+    border-radius: 0.25rem;
+}
+.btn {
+    border-radius: 0.25rem;
+}
+.card{
+border-radius: 0.25rem;
+}
+.page-titles {
+    margin-bottom: 0px;
+}
+[data-sidebar-style="full"][data-layout="vertical"] .deznav .metismenu > li > a {
+    border-radius: 0.25rem;
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+}
+[data-sidebar-style="full"][data-layout="vertical"] .deznav .metismenu > li {
+    padding-left: 0px;
+}
+.badge {
+    border-radius: 0.25rem !important;
+}
+.first-form {
+    border-radius: 0.25rem;
+}
+.farmer-filter .select2-container--default .select2-selection--single {
+    border-radius: 0.25rem;
+}
+.nav-pills .nav-link {
+    border-radius: 0.25rem;
+}
+.w-32{width: 32px !important;}
+@media (min-width: 576px){
+    .farmer-filter .col-sm-2{
+        /*max-width:10%;*/
+    }
+}
+.form-control {
+    border-radius: 0.25rem;
+}
+.form-filter .select2-container--default .select2-selection--single .select2-selection__rendered,
+.form-filter input{
+    font-size: 14px;
+}
+#example3  td {
+    font-size: 14px;
+}
+.twitter-typeahead .tt-query,
+.twitter-typeahead .tt-hint {
+    margin-bottom: 0;
+}
+
+.twitter-typeahead .tt-hint
+{
+    display: none;
+}
+
+.tt-menu,.tt-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1000;
+    display: none;
+    float: left;
+    min-width: 160px;
+    padding: 5px 0;
+    margin: 2px 0 0;
+    list-style: none;
+    font-size: 14px;
+    background-color: #ffffff;
+    border: 1px solid #cccccc;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    -webkit-box-shadow: 0 6px 12px rgba(0, 0, 0, 0.175);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.175);
+    background-clip: padding-box;
+    cursor: pointer;
+}
+
+.tt-suggestion {
+    display: block;
+    padding: 3px 20px;
+    clear: both;
+    font-weight: normal;
+    line-height: 1.428571429;
+    color: #333333;
+    white-space: nowrap;
+}
+
+.tt-suggestion:hover,
+.tt-suggestion:focus {
+    color: #ffffff;
+    text-decoration: none;
+    outline: 0;
+    background-color: #428bca;
+}
+
+.mfp-title {
+    text-align: center;
+}
+.mfp-figure:after {display: none;}
+.dotblue {
+      height: 6px;
+      width: 6px;
+      background-color: #1ce9a7;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .dotgreen {
+      height: 6px;
+      width: 6px;
+      background-color: green;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .dotred {
+      height: 6px;
+      width: 6px;
+      background-color: red;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+@media only screen and (max-width: 767px) and (min-width: 360px)  {
+  #countBoxRow {
+  
+  width:100% !important ;
+  }
+}
+
+@media only screen and (max-width: 767px) and (min-width: 360px){
+  .countBox {
+   
+  min-width:100% ;
+  margin:2px
+
+  }
+}   
+
+/* media query for 768px */
+
+@media (min-width: 768px) {
+  #countBoxRow {
+   
+  min-width:100% !important ;
+  }
+}
+@media(min-width:768px) {
+  .countBox{
+  
+    
+   border-radius: 0px !important;
+   width:49%!important ;
+   margin: 2px;
+    
+  }
+}
+
+@media (min-width:768px) {
+  .cc{
+    border-radius: 0px !important;
+    width:99%!important ;
+    margin: 2px;
+  }
+  
+}
+
+
+ /* media query for 992px */
+
+ @media (min-width: 992px) {
+  #countBoxRow {
+    display:inline-flex !important;
+    flex-flow: row !important;
+    width: 100% !important;
+    }
+}
+@media(min-width:992px) {
+  .countBox {
+    height: 128px!important;
+    width: 120px!important;
+    border-radius: 0px!important;
+    width: 100% !important;
+    margin: 0px !important;
+    
+  }
+}
+@media(min-width:992px) {
+  .t-font {
+      font-size: 15px!important;
+  }
+}
+@media(min-width:992px) {
+  .tt-font {
+      font-size: 11px!important;
+  }
+} 
+
+@media(min-width:992px){
+  .a-font{
+    font-size: 6px;
+  }
+}
+@media(min-width:992px){
+  .pin-font{
+    font-size: 13px !important;
+  }
+}
+@media(min-width:992px){
+  .pi-font{
+    font-size: 13px !important;
+  }
+}
+/* media query for 1200px */
+@media (min-width: 1200px) {
+    #countBoxRow {
+    display:inline-flex !important;
+    flex-flow: row !important;
+    width: 100% !important;
+    margin-left: 1px;
+    }
+  }
+  
+  @media(min-width:1200px) {
+    .countBox {
+      height: 138px!important;
+      width: 130px!important;
+ 
+     border-radius: 0px!important;
+     width: 100% !important;
+     margin: 0px !important;
+      
+    }
+  }
+  
+  @media(min-width:1200px) {
+    .t-font {
+        font-size: 17px!important;
+    }
+  }
+  @media(min-width:1200px) {
+    .tt-font {
+        font-size: 13px!important;
+    }
+  }
+  @media(min-width:1200px) {
+    .countBox1 {
+    margin-left: 20px;
+    }
+  }
+  @media(min-width:1200px){
+    .hun{
+        width: 100%;
+    }
+  }
+  @media(min-width:1200px){
+    .a-font{
+      font-size: 7px;
+    }
+  }
+  @media(min-width:1200px){
+    .pin-font{
+      font-size: 15px !important;
+    }
+  }
+  @media(min-width:1200px){
+    .pi-font{
+      font-size: 15px !important;
+    }
+  }
+
+
+/* media query for 1250px */
+@media (min-width: 1250px) {
+    #countBoxRow {
+    display:inline-flex  !important;
+    flex-flow: row;
+    width: 100%;
+    margin-left: 1px;
+    }
+  }
+  
+  @media(min-width:1250px) {
+    .countBox {
+      height: 140px!important;
+      width: 140px!important;
+      border-radius: 0px!important;
+      width: 100% !important;
+      margin: 0px !important;
+    }
+  }
+  
+  @media(min-width:1250px) {
+    .countBox1 {
+    margin-left: 15px;
+    }
+  }
+  @media(min-width:1250px){
+    .hun{
+        width: 100%;
+    }
+  }
+  @media(min-width:1250px){
+    .pi-font{
+      font-size: 16px!important;
+    }
+  }
+  @media(min-width:1250px){
+    .pin-font{
+      font-size: 16px!important;
+    }
+  }
+  @media(min-width:1250px){
+    .tt-font{
+      font-size: 15px;
+    }
+  }
+  @media(min-width:1250px){
+    .a-font{
+      font-size: 8px;
+    }
+  }
+ /* media query for 1300px */
+ @media (min-width: 1300px) {
+    #countBoxRow {
+    display:inline-flex !important;
+    flex-flow: row;
+    width: 100%;
+    margin-left: 1px;
+ 
+    }
+  }
+  
+  @media(min-width:1300px) {
+    .countBox {
+      height: 146px!important;
+      width: 147px!important;
+      border-radius: 0px!important;
+      width: 100% !important;
+      margin: 0px !important;
+      
+    }
+  }
+  @media(min-width:1300px){
+    .hun{
+        width: 100%;
+    }
+  }
+/* media query for 1350px */
+
+@media (min-width: 1350px) {
+    #countBoxRow {
+    display:inline-flex !important;
+    flex-flow: row;
+    width: 100%;
+    margin-left: 1px;
+ 
+    }
+  }
+  
+  @media(min-width:1350px) {
+    .countBox {
+      height: 150px!important;
+      width: 158px!important;
+      border-radius: 0px!important;
+      width: 100% !important;
+      margin: 0px !important;
+      
+    }
+  }
+  @media(min-width:1350px){
+    .hun{
+        width: 100%;
+    }
+  }
+
+/* media query for 1400px */
+
+@media (min-width: 1400px) {
+    #countBoxRow {
+    display:flex!important;
+    width: 100%;
+    margin-left: 1px;
+    }
+  }
+  
+  @media(min-width:1400px) {
+    .countBox {
+      height: 154px!important;
+      width: 166px!important;
+      border-radius: 0px!important;
+      width: 100% !important;
+      margin: 0px !important;
+    }
+  }
+
+  @media(min-width:1400px) {
+    .t-font {
+        font-size: 22px!important;
+    }
+  }
+  @media(min-width:1400px){
+    .hun{
+        width: 100%;
+    }
+  }
+  @media(min-width:1400px){
+    .pin-font{
+      font-size: 20px !important;
+    }
+  }
+  @media(min-width:1400px){
+    .pi-font{
+      font-size: 20px !important;
+    }
+  }
+  @media(min-width:1400px){
+    .tt-font{
+      font-size: 17px !important;
+    }
+  }
+  @media(min-width:1400px){
+    .a-font{
+      font-size: 12px !important;
+    }
+  }
+  /* media query for 1450px */
+  @media (min-width: 1450px) {
+    #countBoxRow {
+    display:flex!important;
+    width: 100%;
+    margin-left: 1px;
+    }
+  }
+  
+  @media(min-width:1450px) {
+    .countBox {
+      height: 152px!important;
+      width: 170px!important;
+      border-radius: 0px!important;
+      width: 100% !important;
+      margin: 0px !important;
+      
+    }
+  }
+  @media(min-width:1450px){
+    .hun{
+        width: 100%;
+    }
+  }
+  /* media query for 1500px */
+  @media (min-width: 1500px) {
+    #countBoxRow {
+    display:flex!important;
+    width: 100%;
+    margin-left: 1px;
+    }
+  }
+  
+  @media(min-width:1500px) {
+    .countBox {
+      height: 158px!important;
+      width: 174px!important;
+      border-radius: 0px!important;
+      width: 100% !important;
+      margin: 0px !important;
+      
+    }
+  }
+  @media(min-width:1500px){
+    .hun{
+        width: 100%;
+    }
+  }
+  /* media query for 1550px */
+  @media (min-width: 1550px) {
+    #countBoxRow {
+    display:flex!important;
+    width: 100%;
+    margin-left:1px;
+    }
+  }
+
+  @media(min-width:1550px){
+    .boxm{
+      margin-top: 17px;
+    }
+  }
+  
+  @media(min-width:1550px) {
+    .countBox {
+      height: 160px!important;
+      width: 178px!important;
+      border-radius: 0px!important;
+      width: 100% !important;
+      margin: 0px !important;
+      
+    }
+  }
+  @media(min-width:1550px){
+    .hun{
+        width: 100%;
+    }
+  }
+  /* media query for 1600px */
+  @media (min-width: 1600px) {
+    #countBoxRow {
+    display:flex!important;
+    width: 100%;
+    margin-left: 1px;
+    }
+  }
+  
+  @media(min-width:1600px) {
+    .countBox {
+      height: 162px!important;
+      width: 178px!important;
+      border-radius: 0px!important;
+      width: 100% !important;
+      margin: 0px !important;
+      
+    }
+  }
+  @media(min-width:1600px){
+    .hun{
+        width: 100%;
+    }
+  }
+  @media(min-width:1600px) {
+    .t-font {
+        font-size: 22px!important;
+    }
+  }
+
+  @media(min-width:1600px){
+    .pin-font{
+      font-size: 22px !important;
+    }
+  }
+  @media(min-width:1600px){
+    .pi-font{
+      font-size: 22px !important;
+    }
+  }
+  @media(min-width:1600px){
+    .tt-font{
+      font-size: 19px !important;
+    }
+  }
+  @media(min-width:1600px){
+    .a-font{
+      font-size: 14px !important;
+    }
+  }
+  @media(min-width:1600px){
+    .boxm{
+      margin-top: 17px;
+    }
+  }
+  
+  /* media query for 1650px */
+  @media (min-width: 1650px) {
+    #countBoxRow {
+    display:flex!important;
+    width: 100%;
+    margin-left: 1px;
+    }
+  }
+  
+  @media(min-width:1650px) {
+    .countBox {
+      height: 164px !important;
+      width: 183px !important;
+      border-radius: 0px!important;
+      width: 100% !important;
+      margin: 0px !important;
+    }
+  }
+  @media(min-width:1650px){
+    .hun{
+        width: 100%;
+    }
+  }
+  @media(min-width:1650px){
+    .boxm{
+      margin-top: 19px;
+    }
+  }
+  
+  /* media query for 1700px */
+  @media (min-width: 1700px) {
+    #countBoxRow {
+    display:flex!important;
+    width: 100%;
+    margin-left: 1px;
+    }
+  }
+  
+  @media(min-width:1700px) {
+    .countBox {
+      height: 166px !important;
+      width: 187px !important;
+      border-radius: 0px!important;
+      width: 100% !important;
+      margin: 0px !important;
+    }
+  }
+  @media(min-width:1700px){
+    .hun{
+        width: 100%;
+    }
+  }
+  @media(min-width:1700px){
+    .boxm{
+      margin-top: 19px;
+    }
+  }
+   /* media query for 1750px */
+   @media (min-width: 1750px) {
+    #countBoxRow {
+    display:flex!important;
+    width: 100%;
+    margin-left: 1px;
+    }
+  }
+  
+  @media(min-width:1750px) {
+    .countBox {
+      height: 166px !important;
+      width: 188px !important;
+      border-radius: 0px!important;
+      width: 100% !important;
+      margin: 0px !important;
+      
+    }
+  }
+  @media(min-width:1750px){
+    .hun{
+        width: 100%;
+    }
+  }
+  @media(min-width:1750px){
+    .boxm{
+      margin-top: 19px;
+    }
+  }
+   /* media query for 1800px */
+   @media (min-width: 1800px) {
+    #countBoxRow {
+    display:flex!important;
+    width: 100%;
+    margin-left: 1px;
+    }
+  }
+  
+  @media(min-width:1800px) {
+    .countBox {
+      height: 168px !important;
+      width: 188px !important;
+      border-radius: 0px!important;
+      width: 100% !important;
+      margin: 0px !important;
+      
+    }
+  }
+  @media(min-width:1800px){
+    .hun{
+        width: 100%;
+    }
+  }
+ 
+  @media(min-width:1800px) {
+    .t-font {
+        font-size: 24px!important;
+    }
+  }
+
+  @media(min-width:1800px){
+    .pin-font{
+      font-size: 24px !important;
+    }
+  }
+  @media(min-width:1800px){
+    .pi-font{
+      font-size: 24px !important;
+    }
+  }
+  @media(min-width:1800px){
+    .tt-font{
+      font-size: 21px !important;
+    }
+  }
+  @media(min-width:1800px){
+    .a-font{
+      font-size: 16px !important;
+    }
+  }
+  @media(min-width:1800px){
+    .boxm{
+      margin-top: 19px;
+    }
+  }
+  /* media query for 1900px */
+  @media (min-width: 1900px) {
+    #countBoxRow {
+    display:flex!important;
+    width: 100%;
+    margin-left: 1px;
+    }
+  }
+  @media(min-width:1900px){
+    .boxm{
+      margin-top: 19px;
+    }
+  }
+  @media(min-width:1900px) {
+    .countBox {
+      height: 168px !important;
+      width: 188px !important;
+      border-radius: 0px!important;
+      width: 100% !important;
+      margin: 0px !important;
+      
+    }
+  }
+  @media(min-width:1900px){
+    .hun{
+        width: 100%;
+    }
+  }
+

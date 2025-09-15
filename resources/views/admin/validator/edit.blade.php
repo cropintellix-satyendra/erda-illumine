@@ -1,0 +1,333 @@
+{{-- Extends layout --}}
+@extends('layout.default')
+{{-- Content --}}
+@section('content')
+<div class="container-fluid">
+                <div class="row page-titles mx-0">
+                    <div class="col-sm-6 p-md-0">
+                        <div class="welcome-text">
+                            <h4>L-1 Validator Edit</h4>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 p-md-0 justify-content-sm-end mt-2 mt-sm-0 d-flex">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="javascript:void(0)">Admin</a></li>
+                            <li class="breadcrumb-item active"><a href="javascript:void(0)">Edit L-1 Validator</a></li>
+                        </ol>
+                    </div>
+                </div>
+                <!-- row -->
+                <div class="row">
+                  <div class="col-12">
+                      <div class="card">
+                          <div class="card-header">
+                              <h4 class="card-title">L-1 Validator</h4>
+                          </div>
+                          <div class="card-body">
+                            <form action="{{route('admin.validator.update',$vendor->id)}}" method="post">
+                              @csrf
+                              @method('PUT')
+                              <div class="row">
+                                  <div class="col-md-6 col-xl-3 col-xxl-6 mb-3">
+                                      <label>Name <span class="text-danger">*</span></label>
+                                      <div class="input-group">
+                                          <input type="text" class="form-control" name="name" value="{{ old('name', $vendor->name ) }}" id="name" required>
+                                      </div>
+                                  </div>
+                                  <div class="col-md-6 col-xl-3 col-xxl-6 mb-3">
+                                      <label>Email <span class="text-danger">*</span></label>
+                                      <div class="input-group">
+                                          <input type="email" class="form-control @error('email') is-invalid @enderror" value="{{$vendor->email}}" name="email" id="email">
+                                            @error('email')
+                                                <span class="invalid-feedback" role="alert">
+                                                    <strong>{{ $message }}</strong>
+                                                </span>
+                                            @enderror
+                                      </div>
+                                  </div>
+                                  <div class="col-md-6 col-xl-3 col-xxl-6 mb-3">
+                                      <label>Mobile <span class="text-danger">*</span></label>
+                                      <div class="input-group">
+                                          <input type="text" oninput="this.value = this.value.replace(/[^0-9.]/g, '').replace(/(\..*?)\..*/g, '$1');"
+                                          name="mobile" class="form-control @error('mobile') is-invalid @enderror" value="{{$vendor->mobile}}" id="mobile" required maxlength="10">
+                                            @error('mobile')
+                                                <span class="invalid-feedback" role="alert">
+                                                    <strong>{{ $message }}</strong>
+                                                </span>
+                                            @enderror
+                                      </div>
+                                  </div>
+                                  <div class="col-md-6 col-xl-3 col-xxl-6 mb-3">
+                                      <label>Password </label>
+                                      <div class="input-group">
+                                          <input type="text" name="password" class="form-control" id="password" minlength="6">
+                                      </div>
+                                  </div>
+                                <div class="col-md-6 col-xl-3 col-xxl-6 mb-3">
+                                    <label>State <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                          <select multiple class="form-control select2  @error('state') is-invalid @enderror" id="state_id" {{--onchange="FetchDistrict(this.value)" --}}  name="state[]">
+                                          <option value="" disabled>--State--</option>
+                                          @foreach($States as $state)
+                                                <option value="{{$state->id}}" {{ (in_array($state->id,explode(',',$vendor_location->state??'')))?'selected':'' }}>{{$state->name}}</option>
+                                            @endforeach
+                                          </select>
+                                            @error('state')
+                                                <span class="invalid-feedback" role="alert">
+                                                    <strong>{{ $message }}</strong>
+                                                </span>
+                                            @enderror
+                                    </div>
+                                </div>
+                                <div class="col-md-6 col-xl-3 col-xxl-6 mb-3 districtdiv">
+                                    <label>Districts </label>
+                                    <div class="input-group">
+                                          <select class="form-control select2" multiple {{--onchange="FetchBlock(this.value)"  --}} id="district_id" name="district[]">
+                                          <option value="" disabled>--District--</option>
+                                          @foreach($Districts as $district)
+                                                <option value="{{$district->id}}" {{ (in_array($district->id,explode(',',$vendor_location->district)))?'selected':'' }}>{{$district->district}}</option>
+                                            @endforeach
+                                          </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 col-xl-3 col-xxl-6 mb-3 blockdiv">
+                                      <label>Block </label>
+                                      <div class="input-group">
+                                            <select class="form-control select2" multiple {{--onchange="FetchPanchayat(this.value)" --}} id="block_id" name="block[]" >
+                                                <option value="" disabled>--Taluka--</option>
+                                                @foreach($Talukas as $taluka)
+                                                    <option value="{{$taluka->id}}" {{ (in_array($taluka->id,explode(',',$vendor_location->taluka)))?'selected':'' }}>{{$taluka->taluka}}</option>
+                                                @endforeach
+                                            </select>
+                                      </div>
+                                </div>
+                                  <div class="col-md-6 col-xl-3 col-xxl-6 mb-3">
+                                      <label>Status</label>
+                                      <div class="input-group">
+                                            <select class="form-control" name="status" required>
+                                                <option value="1" {{$vendor->status ==1 ? 'selected' : ''}}>Enable</option>
+                                                <option value="0" {{$vendor->status ==0 ? 'selected' : ''}}>Disable</option>
+                                            </select>
+                                      </div>
+                                  </div>
+
+                                  <div class="col-md-6 col-xl-3 col-xxl-6 mb-3">
+                                      <label>Role Assigned :</label>
+                                      <div class="input-group">
+                                        <p><strong>{{ $vendor->roles->count() > 0 ? $vendor->roles->first()->name : '-' }}</strong></p>
+                                       </div>
+                                  </div>
+                              </div>
+                              <div class="col-12">
+                                <a href="{{route('admin.validator.index')}}" class="btn btn-danger mb-2 float-right">Cancel</a>
+                                 <button type="submit" class="btn btn-primary mb-2 mr-2 float-right">Submit</button>
+                              </div>
+                            </form>
+                          </div>
+                      </div>
+                  </div>
+                </div>
+          </div>
+@endsection
+@section('scripts')
+<script>
+$(function(){
+    var RoleSelected  = '{{ $vendor->roles->count() > 0 ? $vendor->roles->first()->name : '-' }}';
+    var result = $("#state_id option:selected").map(function() {
+          return this.value;
+        }).get();
+        if(RoleSelected == 'L-1-Validator'){
+            $('.districtdiv').removeClass('d-none');
+            $('.blockdiv').removeClass('d-none');
+        }else{
+            if(result.length >= 2){
+                $('.districtdiv').addClass('d-none');
+                $('.blockdiv').addClass('d-none');
+            }else{
+                $('.districtdiv').removeClass('d-none');
+                $('.blockdiv').removeClass('d-none');
+            }
+        }
+});
+
+$('#state_id').change(function(){
+     var RoleSelected  = '{{ $vendor->roles->count() > 0 ? $vendor->roles->first()->name : '-' }}';
+        var result = $("#state_id option:selected").map(function() {
+          return this.value;
+        }).get();
+         if(RoleSelected == 'L-1-Validator'){
+            $('.districtdiv').removeClass('d-none');
+            $('.blockdiv').removeClass('d-none');
+        }else{
+            if(result.length >= 2){
+                $('.districtdiv').addClass('d-none');
+                $('.blockdiv').addClass('d-none');
+            }else{
+                $('.districtdiv').removeClass('d-none');
+                $('.blockdiv').removeClass('d-none');
+            }
+        }
+    });
+
+
+function viewPassword(){
+  var passwordInput = document.getElementById('password');
+  var passStatus = document.getElementById('pass-status');
+  if (passwordInput.type == 'password'){
+    passwordInput.type='text';
+    passStatus.className='fa fa-eye';
+  }
+  else{
+    passwordInput.type='password';
+    passStatus.className='fa fa-eye-slash';
+  }
+}
+
+function viewCnfPassword(){
+  var passwordInput = document.getElementById('password_confirmation');
+  var passStatus = document.getElementById('cnfpass-status');
+  if (passwordInput.type == 'password'){
+    passwordInput.type='text';
+    passStatus.className='fa fa-eye';
+  }
+  else{
+    passwordInput.type='password';
+    passStatus.className='fa fa-eye-slash';
+  }
+}
+
+function validatePassword(){
+    var password = document.getElementById("password").value;
+    var confirm_password = document.getElementById("password_confirmation").value;
+    if(confirm_password){
+        if(password != confirm_password) {
+          $(".Submitform").attr("disabled", true);
+          $(".FDcnfpassword").removeClass('d-none');
+          $("#password_confirmation").addClass('is-invalid');
+
+      } else {
+            $(".Submitform").attr("disabled", false);
+            $(".FDcnfpassword").addClass('d-none');
+            $("#password_confirmation").removeClass('is-invalid');
+      }
+    }
+}
+
+$('#roles').select2({
+  selectOnClose: false
+});
+
+$('#state_id').select2({
+   allowClear: true
+});
+
+$('#district_id').select2({
+  selectOnClose: false
+});
+
+$('#block_id').select2({
+  selectOnClose: false
+});
+
+$('#panchayat_id').select2({
+  selectOnClose: false
+});
+
+$('#village_id').select2({
+  selectOnClose: false
+});
+function displayLocation(Id){
+    if(Id == 2){
+        // $('.StateClass').removeClass('d-none');
+        // $('.DistrictClass').removeClass('d-none');
+    }else{
+        // $('.StateClass').addClass('d-none');
+        // $('.DistrictClass').addClass('d-none');
+    }
+}
+
+function FetchDistrict(Id){
+    var stateID = Id;
+    if(stateID) {
+        $.ajax({
+            type:'post',
+            url: "{{url('admin/fetch/district')}}/"+stateID,
+            dataType: 'Json',
+            data: {_token:'{{csrf_token()}}','id':stateID},
+            success: function(data) {
+                $('select[id="district_id"]').empty();
+                $.each(data.district, function(key, value) {
+                    $('select[id="district_id"]').append('<option value="'+ value.id +'">'+ value.district +'</option>');
+                });
+            }
+        });
+    }else{
+        $('select[id="district_id"]').append('<option value="">Select District</option>');
+    }
+}
+
+function FetchBlock(Id){
+    var districtID = Id;
+    if(districtID) {
+        $.ajax({
+            type:'post',
+            url: "{{url('admin/fetch/block')}}/"+districtID,
+            dataType: 'Json',
+            data: {_token:'{{csrf_token()}}','id':districtID},
+            success: function(data) {
+                $('select[id="block_id"]').empty();
+                $('select[id="block_id"]').append('<option value="">Select Taluka</option>');
+                $.each(data.Taluka, function(i, v) {
+                    $('select[id="block_id"]').append('<option value="'+ v.id +'">'+ v.taluka +'</option>');
+                });
+                FetchPanchayat($('#block_id').val())
+            }
+        });
+    }else{
+        $('select[id="block_id"]').empty();
+    }
+}
+
+function FetchPanchayat(Id){
+    var blockID = Id;
+    if(blockID) {
+        $.ajax({
+            type:'post',
+            url: "{{url('admin/fetch/panchayat')}}/"+blockID,
+            dataType: 'Json',
+            data: {_token:'{{csrf_token()}}','id':blockID},
+            success: function(data) {
+                $('select[id="panchayat_id"]').empty();
+                $('select[id="panchayat_id"]').append('<option value="">Select Panchayat</option>');
+                $.each(data.panchayat, function(i, v) {
+                    $('select[id="panchayat_id"]').append('<option value="'+ v.id +'">'+ v.panchayat +'</option>');
+                });
+            }
+        });
+    }else{
+        $('select[id="panchayat_id"]').empty();
+    }
+}
+
+function FetchVillage(Id){
+    var panchayatID = Id;
+    if(panchayatID) {
+        $.ajax({
+            type:'post',
+            url: "{{url('admin/fetch/village')}}/"+panchayatID,
+            dataType: 'Json',
+            data: {_token:'{{csrf_token()}}','id':panchayatID},
+            success: function(data) {
+                $('select[id="village_id"]').empty();
+                $('select[id="village_id"]').append('<option value="">Select Village</option>');
+                $.each(data.Village, function(i, v) {
+                    $('select[id="village_id"]').append('<option value="'+ v.id +'">'+ v.village +'</option>');
+                });
+            }
+        });
+    }else{
+        $('select[id="village_id"]').empty();
+    }
+}
+</script>
+@stop

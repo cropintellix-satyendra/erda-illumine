@@ -1,0 +1,233 @@
+<?php
+
+namespace App\Exports;
+
+use App\Models\FinalFarmer;
+use App\Models\AerationValidation;
+use App\Models\Aeration;
+use App\Models\AerationImage;
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterSheet;
+use Maatwebsite\Excel\Concerns\WithStyles;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use DB;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
+
+class L2AerationExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize, WithEvents, WithStyles, WithChunkReading
+{
+    protected $farmeruniqueid;
+    protected $farmer_id;
+    function __construct($farmeruniqueid, $request)
+    {
+        $this->farmeruniqueid = $farmeruniqueid;
+        $this->request = $request;
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection
+     */
+    public function collection()
+    {
+        // $request = json_decode($this->request);//whil development use this
+        $request = $this->request; //in production use this
+        $farmer = Aeration::whereHas('farmerapproved', function ($q) use ($request) {
+            $q->where('onboarding_form', 1);
+            if (isset($request->state)  && $request->state) {
+                $q->where('state_id', 'like', $request->state);
+            }
+            if (isset($request->district)  && $request->district) {
+                $q->where('district_id', 'like', $request->district);
+            }
+            if (isset($request->taluka)  && $request->taluka) {
+                $q->where('taluka_id', 'like', $request->taluka);
+            }
+            if (isset($request->panchayats)  && $request->panchayats) {
+                $q->where('panchayat_id', 'like', $request->panchayats);
+            }
+            if (isset($request->village)  && $request->village) {
+                $q->where('village_id', 'like', $request->village);
+            }
+            if (isset($request->l2_validator)  && $request->l2_validator) {
+                $q->where('L2_appr_userid', 'like', $request->l2_validator);
+            }
+
+            return $q;
+        })
+            ->with('farmerapproved')
+            ->when($request, function ($w) use ($request) {
+                if (isset($request->executive_onboarding)  && $request->executive_onboarding) {
+                    $w->where('surveyor_id', $request->executive_onboarding);
+                }
+                if (isset($request->start_date)  && $request->start_date) {
+                    $w->whereDate('created_at', '>=', $request->start_date);
+                }
+                if (isset($request->end_date)  && $request->end_date) {
+                    $w->whereDate('created_at', '<=', $request->end_date);
+                }
+                if (isset($request->status)  && $request->status && $request->status != 'Pending') {
+                    $w->where('l2_status', $request->status);
+                }
+                if (isset($request->rolename)  && $request->rolename != 'SuperAdmin' && $request->status != 'Pending') {
+                    $w->where('l2_apprv_reject_user_id', $request->userid);
+                }
+                if (isset($request->l2_validator) && $request->l2_validator) {
+                    //mainly this will be used when admin, viewer are downloading data
+                    $w->where('l2_apprv_reject_user_id', $request->l2_validator);
+                }
+                return $w;
+            })->get();
+            // dd($farmer[0]);
+        return $farmer;
+    }
+
+    public function map($farmer): array
+    {
+        // dd($farmer->users->mobile);
+        $request = $this->request;
+        $payload_fields = [
+        $farmer->farmerapproved->organization->company??"-",
+        $farmer->farmerapproved->farmer_uniqueId ?? "-",
+        $farmer->farmerapproved->farmer_name ?? "-",
+        $farmer->farmerapproved->mobile ?? "-",
+        $farmer->farmerapproved->no_of_plots ?? "-",
+        $farmer->farmerapproved->total_plot_area ?? "-",
+        $farmer->aeration_no ?? "-",
+        $farmer->farmer_plot_uniqueid ?? "-", 
+        $farmer->farmerapproved->total_plot_area ?? "-",  
+        $farmer->farmerapproved->state ??"-", 
+        $farmer->farmerapproved->district ??"-",
+        $farmer->farmerapproved->taluka ?? "-",
+        $farmer->farmerapproved->panchayat ?? "-",
+        $farmer->farmerapproved->village ?? "-",
+        $farmer->created_at ??"-",  
+        $farmer->date_survey ?? "-", 
+        $farmer->time_survey ?? "-",
+        $farmer->users->name ?? "-",
+        $farmer->users->mobile ?? "-",
+
+
+
+            // $farmer->farmerapproved->farmer_uniqueId ?? "-", $farmer->farmerapproved->farmer_name ?? "-", $farmer->farmerapproved->mobile_access ?? "-",
+            // $farmer->farmerapproved->mobile_reln_owner ?? "-", $farmer->farmerapproved->mobile ?? "-", $farmer->farmerapproved->state ?? "-",
+            // $farmer->aeration_no ?? "-",   $farmer->pipe_no ?? "-"
+        ];
+
+        if (isset($request->status)  && $request->status == 'Rejected') {
+            $image = $farmer->AerationImages()->where('farmer_plot_uniqueid', $farmer->farmer_plot_uniqueid)->where('aeration_no', $farmer->aeration_no)->where('status', 'Rejected')->select('path')->get();
+        } else {
+            $image = $farmer->AerationImages()->where('farmer_plot_uniqueid', $farmer->farmer_plot_uniqueid)->where('aeration_no', $farmer->aeration_no)->where('status', 'Approved')->select('path')->get();
+        }
+
+
+        // if ($image->count() > 0) { //check collection of image is present 
+        //     foreach ($image as $img) {
+        //         array_push($payload_fields, $img->path ?? "-");
+        //     }
+        // } else {
+        //     array_push($payload_fields, "-", "-");      // if no then add hypen      
+        // }
+        if ($image->count() > 0) {
+            $firstImage = $image->first();
+        
+            $counter = 0;
+            foreach ($image as $img) {
+                array_push($payload_fields, $img->path ?? "-");
+                $counter++;
+        
+                // Stop adding images after the second one
+                if ($counter === 2) {
+                    break;
+                }
+            }
+            // If there's only one image, replace the second column with a hyphen
+            if ($image->count() === 1) {
+                array_push($payload_fields, "-");
+            }
+        } else {
+            // If there are no images, add two hyphens to payload_fields
+            array_push($payload_fields, "-", "-");
+        }
+
+        $validator = AerationValidation::with('ValidatorUserDetail')->where('farmer_plot_uniqueid', $farmer->farmer_plot_uniqueid)->where('level', 'L-2-Validator')->where('aeration_no', $farmer->aeration_no)->latest()->first();
+
+        array_push($payload_fields, 
+        // $farmer->date_survey ?? "-", 
+        // $farmer->time_survey ?? "-", 
+        // $farmer->users->name ?? "-", 
+        // $farmer->users->mobile ?? "-",  
+        $validator->status ?? "-", 
+        $validator->ValidatorUserDetail->name ?? "-", 
+        // $validator->timestamp ?? "-"
+    );
+        return $payload_fields;
+    }
+
+    public function headings(): array
+    {
+        $header = [
+            'Organisation Name',
+            'Farmer UniqueID',
+            'Farmer Name',
+            'Mobile Number',
+            'Total number of plots', 
+            'Total AWD Area in Acres',
+            'Aeration event number',
+            'Plot Id',
+            'Plot Area in Acres',
+            'State',
+            'District',
+            'Block',
+            'Panchayat',
+            'Village',
+            'Date & Time of aerationcapture',
+            'Date Form Submitted',
+            'Time Form Submitted',
+            'Surveyor Name',
+            'Surveyor Number',
+            // 'L1Status',
+            // 'L1ValidatorName', 
+            'Img-1', 
+            'Img-2',
+            'status',
+            'Validator name',
+
+
+
+            // 'Farmer UniqueID', 'Farmer Name', 'Mobile Access', 'Mobile Relation Owner', 'Mobile', 'State',
+            // 'Aeration', 'Plot No', 'Img-1', 'Img-2', 'Date', 'Time', 'Surveyor Name', 'Surveyor Mobile', 'L2Status', 'L2ValidatorName', 'L2ValidateTime'
+        ];
+        return $header;
+    }
+
+    /**
+     * Write code on Method
+     *
+     * @return response()
+     */
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class    => function (AfterSheet $event) {
+                $cellRange = 'A1:AJ1'; // All headers
+                $event->sheet->getDelegate()->getStyle($cellRange)->getFont()->setSize(11);
+            },
+        ];
+    }
+
+    public function styles(Worksheet $sheet)
+    {
+        return [
+            // Style the first row as bold text.
+            1    => ['font' => ['bold' => true]],
+        ];
+    }
+
+    public function chunkSize(): int
+    {
+        return 100;
+    }
+}

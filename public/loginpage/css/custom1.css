@@ -1,0 +1,152 @@
+html{
+    position:relative; 
+    min-height: 100%;
+  }
+body{
+    
+    overflow: hidden;
+    background-position: top center;
+    background-size: cover;
+    background-repeat: no-repeat;
+ 
+}
+.Awd{
+   
+    width: 100%;
+    margin-top: 150px;
+    background: rgba(0, 45, 19, 0.1);
+    text-align: center;
+    padding-left: 20px;
+    padding-right: 20px;
+    height: 90px;
+}
+.awdfont{
+    font-size: 40px;
+    margin-top:5px;
+    color:#CCFF00;  
+}
+.alternate{
+    margin-top:-20px;
+    font-size: 25px;
+    font-size: bold;
+    color:ghostwhite;
+}
+.btn1:hover {
+    background: rgba(255, 1, 1, 0.75);
+    border: 2px solid white;
+}
+  input[type="email"]::placeholder {
+  text-align: center;
+}
+input[type="password"]::placeholder {
+ text-align: center;
+}
+.footer-container{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);  
+    position: sticky;
+    bottom: -10px;
+    left: 0;
+    right: 0;
+}
+.footer-item{
+    text-align: center;
+}
+.foot1{
+  font-size: 25px;
+  color: whitesmoke;
+}
+@media screen and (min-width:1200px) {
+    .footer-section{
+        position: sticky;
+        bottom:0;
+        left: 0;
+        right: 0;
+     margin-top: 180px;
+    }
+  }
+
+
+  @media screen and (min-width:1300px) {
+    .footer-section{
+        position: sticky;
+        bottom:0;
+        left: 0;
+        right: 0;
+        margin-top:180px;
+    }
+  }
+  @media screen and (min-width:1400px) {
+    .footer-section{
+        position: sticky;
+        bottom:0;
+        left: 0;
+        right: 0;
+        margin-top:220px;
+    }
+  }
+  
+  @media screen and (min-width:1500px) {
+    .footer-section{
+        position: sticky;
+        bottom:0;
+        left: 0;
+        right: 0;
+        margin-top: 250px;
+    }
+  }
+  @media screen and (min-width:1600px) {
+    .footer-section{
+        position: sticky;
+        bottom:0;
+        left: 0;
+        right: 0;
+        margin-top:300px;
+    }
+  }
+  @media screen and (min-width:1700px) {
+    .footer-section{
+        position: sticky;
+        bottom:0;
+        left: 0;
+        right: 0;
+        margin-top:330px;
+    }
+  }
+  @media screen and (min-width:1800px) {
+    .footer-section{
+        position: sticky;
+        bottom:0;
+        left: 0;
+        right: 0;
+        margin-top:338px;
+    }
+  }
+  @media screen and (min-width:1900px) {
+    .footer-section{
+        position: sticky;
+        bottom:0;
+        left: 0;
+        right: 0;
+        margin-top:338px;
+    }
+    .Awd{
+   
+    width: 100%;
+    margin-top: 250px;
+    background: rgba(0, 45, 19, 0.1);
+    text-align: center;
+    padding-left: 20px;
+    padding-right: 20px;
+    height: 90px;
+}
+  }
+  @media screen and (min-width:2000px) {
+    .footer-section{
+        position: sticky;
+        bottom:0;
+        left: 0;
+        right: 0;
+        margin-top:240px;
+    }
+  }

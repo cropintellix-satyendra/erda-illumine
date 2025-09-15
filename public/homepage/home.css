@@ -1,0 +1,297 @@
+@import url(https://fonts.googleapis.com/css?family=Roboto:300);
+
+.login-page {
+  width: 360px;
+  padding: 8% 0 0;
+  margin: auto;
+}
+
+/* AGROFOREST FORM */
+
+.agro-form {
+  text-align: center;
+  margin: 20px 0 0 83px;
+}
+
+.agro-form h1 {
+  color: #0ea306;
+  transform: translateX(-32%);
+  font-size: 40px;
+  line-height: 30px;
+  font-weight: revert;
+  font-family: Arial, Helvetica, sans-serif;
+  letter-spacing: 0px;
+}
+
+.agro-form img {
+  /* display: block; */
+  width: 50%;
+  margin: 100px 79px 30px -55px;
+}
+
+.agro-form .login-form {
+  text-align: center;
+  width: fit-content;
+  margin: 10px 0px 0 60px;
+}
+
+.agro-form .login-form form input {
+  display: block;
+  margin-bottom: 20px;
+  width: 305px;
+  padding: 7px;
+  border-radius: 10px;
+  border: 2px solid #bbbcb6;
+}
+
+.agro-form .login-form form input::placeholder {
+  font-size: 13px;
+  color: #000000;
+  font-weight: 900;
+}
+
+.agro-form .login-form form button.login-btn {
+  background-color: #0ea306;
+  padding: 5px;
+  width: 110px;
+  border: none;
+  border-radius: 7px;
+  color: white;
+  font-weight: 600;
+  font-family: "Poppins", sans-serif;
+}
+
+.agro-form .login-form form p {
+  font-size: 10px;
+  font-family: "Poppins", sans-serif;
+}
+
+.agro-form .login-form form p a {
+  text-decoration: none;
+  color: #0ea306;
+}
+
+.agro-form .login-form form {
+  display: block;
+  margin: 0 0 10px 0;
+  color: grey;
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.agro-form .login-form form a.forget-password {
+  display: block;
+  color: grey;
+  margin-bottom: 10px;
+  text-decoration: none;
+}
+
+.w-clearfix.content-inside p.credit,
+.w-clearfix.inside._02 p.credit {
+  font-size: 13px;
+  line-height: 15px;
+  font-weight: 500;
+  color: black;
+  text-align: center;
+  transform: translateY(85px);
+  font-family: "Poppins", sans-serif;
+}
+
+@media only screen and (max-width: 600px) {
+  .agro-form {
+    margin: 0;
+  }
+
+  .agro-form h1 {
+    font-size: 30px;
+    transform: translateX(-22%);
+  }
+
+  .agro-form img {
+    width: 70%;
+    margin: 100px 10px 30px -28px;
+  }
+
+  .agro-form .login-form {
+    margin: 10px 0px 0 40px;
+  }
+
+  .agro-form .login-form form input {
+    width: 260px;
+  }
+
+  .w-clearfix.inside._02 p.credit {
+    font-size: 10px;
+    margin-bottom: 15px;
+    transform: translateY(0px);
+  }
+  /* .w-clearfix.inside._02 {
+    padding-left: 0;
+    padding-right: 0;
+  } */
+}
+
+/* SRCWM */
+
+.scrwm-form {
+  text-align: center;
+}
+
+.scrwm-form h1 {
+  color: #0ea306;
+  transform: translateX(-57%);
+  font-size: 20px;
+  line-height: 30px;
+  font-weight: revert;
+  font-family: Arial, Helvetica, sans-serif;
+  letter-spacing: 0px;
+}
+
+.scrwm-form img {
+  width: 50%;
+  margin: 70px 0px 30px 70px;
+}
+
+.scrwm-form .login-form {
+  text-align: center;
+  width: fit-content;
+  margin: 10px 0px 0 240px;
+}
+
+.scrwm-form .login-form form input {
+  display: block;
+  margin-bottom: 20px;
+  width: 305px;
+  padding: 7px;
+  border-radius: 10px;
+  border: 2px solid #bbbcb6;
+}
+
+.scrwm-form .login-form form input::placeholder {
+  font-size: 13px;
+  color: #000000;
+  font-weight: 900;
+}
+
+.scrwm-form .login-form form button.login-btn {
+  background-color: #0ea306;
+  padding: 5px;
+  width: 110px;
+  border: none;
+  border-radius: 7px;
+  color: white;
+  font-weight: 600;
+  font-family: "Poppins", sans-serif;
+}
+
+.scrwm-form .login-form form p {
+  font-size: 10px;
+  font-family: "Poppins", sans-serif;
+}
+
+.scrwm-form .login-form form p a {
+  text-decoration: none;
+  color: #76b852;
+}
+
+.scrwm-form .login-form form {
+  display: block;
+  margin: 0 0 10px 0;
+  color: grey;
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.scrwm-form .login-form form a.forget-password {
+  display: block;
+  color: grey;
+  margin-bottom: 10px;
+  text-decoration: none;
+}
+
+.scrwm-form p.credit {
+  font-size: 13px;
+  line-height: 15px;
+  color: black;
+  font-weight: 500;
+  text-align: center;
+  margin: 44px 0px 8px 80px;
+  font-family: "Poppins", sans-serif;
+}
+
+@media only screen and (max-width: 600px) {
+  .scrwm-form h1 {
+    transform: translateX(-6%);
+  }
+
+  .scrwm-form img {
+    width: 75%;
+    margin: 90px 0px 30px 0px;
+  }
+
+  .scrwm-form .login-form {
+    margin: 10px 0px 0 32px;
+  }
+  .scrwm-form p.credit {
+    margin: 44px 0px 0px 20px;
+    padding-bottom: 10px;
+    font-size: 10px;
+  }
+}
+
+/* .form .container {
+  position: relative;
+  z-index: 1;
+  max-width: 300px;
+  margin: 0 auto;
+} */
+.container:before,
+.container:after {
+  content: "";
+  display: block;
+  clear: both;
+}
+.container .info {
+  margin: 50px auto;
+  text-align: center;
+}
+.container .info h1 {
+  margin: 0 0 15px;
+  padding: 0;
+  font-size: 36px;
+  font-weight: 300;
+  color: #1a1a1a;
+}
+.container .info span {
+  color: #4d4d4d;
+  font-size: 12px;
+}
+.container .info span a {
+  color: #000000;
+  text-decoration: none;
+}
+.container .info span .fa {
+  color: #ef3b3a;
+}
+body {
+  background: #76b852; /* fallback for old browsers */
+  background: -webkit-linear-gradient(right, #76b852, #8dc26f);
+  background: -moz-linear-gradient(right, #76b852, #8dc26f);
+  background: -o-linear-gradient(right, #76b852, #8dc26f);
+  background: linear-gradient(to left, #76b852, #8dc26f);
+  font-family: "Roboto", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.inside._02 {
+  padding-top: 10px;
+}
+
+.content-inside {
+  padding-bottom: 0px;
+}
+
+.inside._03 {
+  padding-top: 0;
+}
