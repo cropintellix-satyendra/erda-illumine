@@ -235,8 +235,8 @@
                                                 <td>{{ $value->farmerapproved->mobile }}</td>
                                                 <td>{{ $value->farmerapproved->state->name }}</td>
                                                 <td>{{ $value->farmerapproved->district->district }}</td>
-                                                <td>{{ $value->farmerapproved->taluka->taluka }}</td>
-                                                <td>{{ $value->farmerapproved->village->village }}</td>
+                                                <td>{{ $value->farmerapproved->taluka->taluka??"-" }}</td>
+                                                <td>{{ $value->farmerapproved->village->village??"-" }}</td>
                                                 <td>{{ $value->created_at }}</td>
                                                 <td>
                                                     @if($value->final_status == 'Approved')

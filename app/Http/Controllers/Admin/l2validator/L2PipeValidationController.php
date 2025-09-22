@@ -176,6 +176,7 @@ class L2PipeValidationController extends Controller
 public function pipe_pending_lists()
   {
     // dd(' cb');
+    $farmer_uniqueId = request('farmer_uniqueId')??'';
     $plots_paginate = PipeInstallationPipeImg::with('farmerapproved')
     ->where('l2status', 'Pending')
     ->whereHas('farmerapproved', function ($q) {
@@ -197,6 +198,9 @@ public function pipe_pending_lists()
         }
         if(request()->has('farmer_status') && !empty(request('farmer_status'))){
              $q->where('final_status_onboarding','like',request('farmer_status'));
+        }
+        if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
+             $q->where('farmer_uniqueId',request('farmer_uniqueId'));
         }
 
         if (auth()->user()->hasRole('L-2-Validator')) {
@@ -236,7 +240,7 @@ public function pipe_pending_lists()
   	  $seasons = DB::table('seasons')->get();
       $status = request()->status;
       $others = "0";
-  	  return view('l2validator.pipe.pending-plot',compact('links','plots_paginate','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
+  	  return view('l2validator.pipe.pending-plot',compact('farmer_uniqueId','links','plots_paginate','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
   }
 
 
@@ -1183,6 +1187,7 @@ public function pipe_pending_lists()
      {
 
         // dd('c');
+        $farmer_uniqueId = request('farmer_uniqueId')??'';
            $plots_paginate= PipeInstallationPipeImg::with('farmerapproved','reject_validation_detail')
            // ->groupBy('farmer_plot_uniqueid')
            ->where('l2status','Rejected')
@@ -1236,7 +1241,9 @@ public function pipe_pending_lists()
                 $q->where('surveyor_id',request('executive_onboarding'));
    
            }
-   
+           if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
+             $q->where('farmer_uniqueId',request('farmer_uniqueId'));
+           }
            if(auth()->user()->hasRole('L-2-Validator')){
    
                $VendorLocation = DB::table('vendor_locations')->where('user_id',auth()->user()->id)->first();
@@ -1341,7 +1348,7 @@ public function pipe_pending_lists()
    
          $others = "0";
    
-           return view('l2validator.pipe.reject-plot',compact('links','plots_paginate','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
+           return view('l2validator.pipe.reject-plot',compact('farmer_uniqueId','links','plots_paginate','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
    
      }
 
@@ -1568,6 +1575,7 @@ public function pipe_approved_lists()
 	//   if(request()->ajax()){
 
         // dd(auth()->user()->id);
+        $farmer_uniqueId = request('farmer_uniqueId')??'';
   		$plots_paginate= PipeInstallationPipeImg::with('farmerapproved','approve_validation_detail')
         ->where('l2status','Approved')
         // ->paginate(10);
@@ -1602,7 +1610,9 @@ public function pipe_approved_lists()
         if(request()->has('executive_onboarding') && !empty(request('executive_onboarding'))){
              $q->where('surveyor_id',request('executive_onboarding'));
         }
-
+        if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
+             $q->where('farmer_uniqueId',request('farmer_uniqueId'));
+        }
         if(auth()->user()->hasRole('L-2-Validator')){
             $VendorLocation = DB::table('vendor_locations')->where('user_id',auth()->user()->id)->first();
             $q->whereIn('state_id',explode(',',$VendorLocation->state));
@@ -1656,7 +1666,7 @@ public function pipe_approved_lists()
   		$seasons = DB::table('seasons')->get();
       $status = request()->status;
       $others = "0";
-  	  return view('l2validator.pipe.approved-plot',compact('links','plots_paginate','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive',
+  	  return view('l2validator.pipe.approved-plot',compact('farmer_uniqueId','links','plots_paginate','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive',
       'status','others'));
   }
 

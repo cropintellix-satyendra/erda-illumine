@@ -169,6 +169,10 @@ class L2PipeValidationController extends Controller
             if(request()->has('village') && !empty(request('village'))){
                  $village_query = "AND (final_farmers.village_id = ".request('village').")";
             }    
+            $farmer_uniqueId = request('farmer_uniqueId')??'';
+            if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
+                 $village_query = "AND (final_farmers.farmer_uniqueId = ".request('farmer_uniqueId').")";
+            }    
 
 
             $start_date=$surveyor_id=$end_date=$season="";
@@ -270,7 +274,7 @@ class L2PipeValidationController extends Controller
   	  $seasons = DB::table('seasons')->get();
       $status = request()->status;
       $others = "0";
-  	  return view('admin.l2validator.pipe.pending-plot',compact('links','pagination','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
+  	  return view('admin.l2validator.pipe.pending-plot',compact('farmer_uniqueId','links','pagination','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
   }
 
 
@@ -817,6 +821,10 @@ class L2PipeValidationController extends Controller
             if(request()->has('village') && !empty(request('village'))){
                  $village_query = "AND (final_farmers.village_id = ".request('village').")";
             }    
+            $farmer_uniqueId = request('farmer_uniqueId')??'';
+            if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
+                 $village_query = "AND (final_farmers.farmer_uniqueId = ".request('farmer_uniqueId').")";
+            }    
 
 
             $start_date=$surveyor_id=$end_date=$season="";
@@ -920,7 +928,7 @@ class L2PipeValidationController extends Controller
   		$seasons = DB::table('seasons')->get();
       $status = request()->status;
       $others = "0";
-  	  return view('admin.l2validator.pipe.reject-plot',compact('links','pagination','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
+  	  return view('admin.l2validator.pipe.reject-plot',compact('farmer_uniqueId','links','pagination','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
   }
 
   public function pipe_reject_detail($rolename,$plotuniqueid){
@@ -1026,6 +1034,10 @@ class L2PipeValidationController extends Controller
             }
             if(request()->has('village') && !empty(request('village'))){
                  $village_query = "AND (final_farmers.village_id = ".request('village').")";
+            }    
+            $farmer_uniqueId = request('farmer_uniqueId')??'';
+            if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
+                 $village_query = "AND (final_farmers.farmer_uniqueId = ".request('farmer_uniqueId').")";
             }    
 
 
@@ -1140,7 +1152,7 @@ class L2PipeValidationController extends Controller
   	  $seasons = DB::table('seasons')->get();
       $status = request()->status;
       $others = "0";
-  	  return view('admin.l2validator.pipe.approved-plot',compact('links','pagination','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive',
+  	  return view('admin.l2validator.pipe.approved-plot',compact('farmer_uniqueId','links','pagination','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive',
       'status','others'));
   }
 

@@ -387,7 +387,11 @@
                                                       <tr><td>Pipe {{$pipe->pipe_no}} Distance</td>
                                                         <td>
                                                           <div class="plot-gallery d-flex float-left">
-                                                              <a class="btn btn-sm p-0 popup-gallery" href="{{$pipe->images}}"><img src="{{asset('icons/icons8-photos-100.png')}}" class="w-32"></a>
+                                                              @php
+                                                                  $pipeImagesArray = is_array($pipe->images) ? $pipe->images : ((is_string($pipe->images) && \Illuminate\Support\Str::startsWith($pipe->images, '[')) ? (json_decode($pipe->images, true) ?? []) : (empty($pipe->images) ? [] : [$pipe->images]));
+                                                                  $pipeFirstImage = $pipeImagesArray[0] ?? '';
+                                                              @endphp
+                                                              <a class="btn btn-sm p-0 popup-gallery" href="{{$pipeFirstImage}}" data-images='@json($pipeImagesArray)'><img src="{{asset('icons/icons8-photos-100.png')}}" class="w-32"></a>
                                                           </div>
                                                           <div class="d-inline float-right mt-2">{{$pipe->distance }}M</div>
                                                         </td>
@@ -469,15 +473,23 @@
                             <div id="plotPipeImg" class="carousel slide" data-ride="carousel">
                                 <ol class="carousel-indicators">
                                     @foreach($PipesLocation as $pipe)
-                                    <li data-target="#plotPipeImg" data-slide-to="{{$loop->index}}" class="{{$loop->first?'active':''}}"><img class="d-block w-100 img-fluid" src="{{$pipe->images}}" alt=""></li>
+                                    @php
+                                        $pipeImagesArray = is_array($pipe->images) ? $pipe->images : ((is_string($pipe->images) && \Illuminate\Support\Str::startsWith($pipe->images, '[')) ? (json_decode($pipe->images, true) ?? []) : (empty($pipe->images) ? [] : [$pipe->images]));
+                                        $pipeFirstImage = $pipeImagesArray[0] ?? '';
+                                    @endphp
+                                    <li data-target="#plotPipeImg" data-slide-to="{{$loop->index}}" class="{{$loop->first?'active':''}}"><img class="d-block w-100 img-fluid" src="{{$pipeFirstImage}}" alt=""></li>
                                     @endforeach
                                 </ol>
                                 <div class="carousel-inner">
                                     @foreach($PipesLocation as $pipeImage)
+                                    @php
+                                        $pipeImagesArray = is_array($pipeImage->images) ? $pipeImage->images : ((is_string($pipeImage->images) && \Illuminate\Support\Str::startsWith($pipeImage->images, '[')) ? (json_decode($pipeImage->images, true) ?? []) : (empty($pipeImage->images) ? [] : [$pipeImage->images]));
+                                        $pipeFirstImage = $pipeImagesArray[0] ?? '';
+                                    @endphp
                                     <div class="carousel-item plotPipeImg  {{$loop->first?'active':''}}">
                                         <figure itemprop="associatedMedia" itemscope itemtype="http://schema.org/ImageObject">
-                                            <a href="{{$pipeImage->images}}" class="pipeImgclick" data-caption="Plot no. {{$pipeImage->pipe_no}}<br><em class='text-muted'>Pipe Image</em>" data-width="1200" data-height="900" itemprop="contentUrl">
-                                              <img class="d-block w-100" height="350" src="{{$pipeImage->images}}" itemprop="thumbnail" alt="plot image">
+                                            <a href="{{$pipeFirstImage}}" class="pipeImgclick" data-images='@json($pipeImagesArray)' data-caption="Plot no. {{$pipeImage->pipe_no}}<br><em class='text-muted'>Pipe Image</em>" data-width="1200" data-height="900" itemprop="contentUrl">
+                                              <img class="d-block w-100" height="350" src="{{$pipeFirstImage}}" itemprop="thumbnail" alt="plot image">
                                             </a>
                                           </figure>
                                     </div>
@@ -936,12 +948,22 @@ initMap();
                 index: $(this).index(),
                 initModalPos:{right:1,top:0}
             };
-        $(this).parent().find('a').each(function(){
-            let src = $(this).attr('href');
-            items.push({
-                src: src
+        var dataImages = $(this).attr('data-images');
+        if(dataImages){
+            try{
+                var arr = JSON.parse(dataImages);
+                arr.forEach(function(src){
+                    items.push({ src: src });
+                });
+            }catch(err){
+            }
+        }
+        if(items.length === 0){
+            $(this).parent().find('a').each(function(){
+                let src = $(this).attr('href');
+                items.push({ src: src });
             });
-        });
+        }
         new PhotoViewer(items,options);
     });
     $('.plotPipeImg .pipeImgclick').click(function(e){
@@ -951,12 +973,22 @@ initMap();
                 index: $(this).parents('.carousel-item').index(),
                 initModalPos:{right:1,top:0}
             };
-        $('#plotPipeImg').find('.pipeImgclick').each(function(){
-            let src = $(this).attr('href');
-            items.push({
-                src: src
+        var dataImages = $(this).attr('data-images');
+        if(dataImages){
+            try{
+                var arr = JSON.parse(dataImages);
+                arr.forEach(function(src){
+                    items.push({ src: src });
+                });
+            }catch(err){
+            }
+        }
+        if(items.length === 0){
+            $('#plotPipeImg').find('.pipeImgclick').each(function(){
+                let src = $(this).attr('href');
+                items.push({ src: src });
             });
-        });
+        }
         new PhotoViewer(items,options);
     });
      $('.benefitsimg .benefitImgclick').click(function(e){

@@ -1285,7 +1285,7 @@ return response()->json([
       'mobile' => 'required',
     ]);
     $mobile = $request->mobile;
-    $farmer = FinalFarmer::where('mobile', $mobile)->while("onboard_completed","!=","Processing")->first();
+    $farmer = FinalFarmer::where('mobile', $mobile)->where("onboard_completed","!=","Processing")->first();
     if ($farmer) {
       return response()->json(['success' => true, 'message' => 'Mobile number already exists'], 200);
     } else {

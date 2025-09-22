@@ -227,19 +227,35 @@
                             <!-- All plot pipe images -->
                             <div id="plotPipeImg" class="carousel slide" data-ride="carousel">
                                 <ol class="carousel-indicators">
+                                    @php $slideIndex = 0; @endphp
                                     @foreach($PipesLocation as $pipe)
-                                    <li data-target="#plotPipeImg" data-slide-to="{{$loop->index}}" class="{{$loop->first?'active':''}}"><img class="d-block w-100 img-fluid" src="{{$pipe->images}}" alt=""></li>
+                                        @php $images = is_string($pipe->images) ? json_decode($pipe->images, true) : $pipe->images; @endphp
+                                        @if(is_array($images))
+                                            @foreach($images as $image)
+                                                <li data-target="#plotPipeImg" data-slide-to="{{$slideIndex}}" class="{{$slideIndex == 0 ? 'active' : ''}}">
+                                                    <img class="d-block w-100 img-fluid" src="{{$image}}" alt="Pipe Image">
+                                                </li>
+                                                @php $slideIndex++; @endphp
+                                            @endforeach
+                                        @endif
                                     @endforeach
                                 </ol>
                                 <div class="carousel-inner">
+                                    @php $slideIndex = 0; @endphp
                                     @foreach($PipesLocation as $pipeImage)
-                                    <div class="carousel-item plotPipeImg  {{$loop->first?'active':''}}">
-                                        <figure itemprop="associatedMedia" itemscope itemtype="http://schema.org/ImageObject">
-                                            <a href="{{$pipeImage->images}}" class="pipeImgclick" data-caption="Plot no. {{$pipeImage->pipe_no}}<br><em class='text-muted'>Pipe Image</em>" data-width="1200" data-height="900" itemprop="contentUrl">
-                                              <img class="d-block w-100" height="350" src="{{$pipeImage->images}}" itemprop="thumbnail" alt="plot image">
-                                            </a>
-                                          </figure>
-                                    </div>
+                                        @php $images = is_string($pipeImage->images) ? json_decode($pipeImage->images, true) : $pipeImage->images; @endphp
+                                        @if(is_array($images))
+                                            @foreach($images as $image)
+                                                <div class="carousel-item plotPipeImg {{$slideIndex == 0 ? 'active' : ''}}">
+                                                    <figure itemprop="associatedMedia" itemscope itemtype="http://schema.org/ImageObject">
+                                                        <a href="{{$image}}" class="pipeImgclick" data-caption="Plot no. {{$pipeImage->pipe_no}}<br><em class='text-muted'>Pipe Image</em>" data-width="1200" data-height="900" itemprop="contentUrl">
+                                                            <img class="d-block w-100" height="350" src="{{$image}}" itemprop="thumbnail" alt="plot image">
+                                                        </a>
+                                                    </figure>
+                                                </div>
+                                                @php $slideIndex++; @endphp
+                                            @endforeach
+                                        @endif
                                     @endforeach
                                 </div>
                                 <a class="carousel-control-prev" href="#plotPipeImg" data-slide="prev"><span class="carousel-control-prev-icon"></span> <span

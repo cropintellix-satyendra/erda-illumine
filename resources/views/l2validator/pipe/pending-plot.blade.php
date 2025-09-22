@@ -189,6 +189,9 @@
                                                     @endif
                                             </select>
                                     </div>
+                                    <div class="col-sm-2 mt-2">
+                                        <input type="text" name="farmer_uniqueId" value="{{ request()->query('farmer_uniqueId') }}" class="form-control" placeholder="Farmer Unique Id">
+                                    </div>
                                     <div class="col-sm-2">
                                         <button type="submit" class="btn btn-rounded btn-success"><span class="btn-icon-start text-dangers"></span>Submit</button>
                                         <button type="button" class="btn btn-rounded btn-danger filter-remove"><span class="btn-icon-start text-dangers"><i class="fa fa-filter color-danger"></i> </span>Clear</button>
@@ -235,8 +238,8 @@
                                                 <td>{{ $value->farmerapproved->mobile }}</td>
                                                 <td>{{ $value->farmerapproved->state->name }}</td>
                                                 <td>{{ $value->farmerapproved->district->district }}</td>
-                                                <td>{{ $value->farmerapproved->taluka->taluka }}</td>
-                                                <td>{{ $value->farmerapproved->village->village }}</td>
+                                                <td>{{ $value->farmerapproved->taluka->taluka??"-" }}</td>
+                                                <td>{{ $value->farmerapproved->village->village??"-" }}</td>
                                                 <td>{{ $value->created_at }}</td>
                                                 <td>
                                                     @if($value->l2status == 'Approved')

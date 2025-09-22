@@ -189,7 +189,6 @@ class PipeIntallationController extends Controller
                            ->where('status', 'Approved')
                            ->where('trash', 0)
                            ->get();
-   
            // If data is found, check if it matches the financial year and season
            if ($pipe_data->isNotEmpty()) {
                foreach ($pipe_data as $data) {
@@ -212,18 +211,21 @@ class PipeIntallationController extends Controller
                                 ]
                             )
                            ->where('farmer_plot_uniqueid', $request->farmer_plot_uniqueid)
-                           ->where('plot_no', $request->plot_no)
+                        //    ->where('plot_no', $request->plot_no)
                         //    ->where('pipe_no', $request->pipe_no)
                            ->where('status', 'Approved')
                            ->where('trash', 0)
                            ->get();
+           // Return the plot data with the found pipe data
+        //    $plot->pipes_location = $pipe_data;
            $plot->pipes_location = $pipe_data_existing;
            return response()->json([
                'error' => false,
                'message' => 'Data Available',
                'data' => $plot,
                'status' => $pipe_data->isNotEmpty() ? 1 : 0,
-               'polygon_status' => $polygon_status
+               'polygon_status' => $polygon_status,
+               'pipe_data_existing' => $pipe_data_existing,
            ], 200);
    
        } else {

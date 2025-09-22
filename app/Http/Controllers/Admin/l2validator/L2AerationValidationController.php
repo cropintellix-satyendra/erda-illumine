@@ -299,6 +299,7 @@ public function awd_pending_lists()
     //level 1 validator get pending plot list of pipe function
 	  //Plot list
         // if(request()->ajax()){
+        $farmer_uniqueId = request('farmer_uniqueId')??'';
             $plots_paginate = Aeration::with('farmerapproved')->where('status','Approved')->where('l2_status','Pending')->whereHas('farmerapproved',function($q){
                 if(auth()->user()->hasRole('L-2-Validator')){
                     $VendorLocation = DB::table('vendor_locations')->where('user_id',auth()->user()->id)->first();
@@ -342,6 +343,9 @@ public function awd_pending_lists()
             if(request()->has('farmer_status') && !empty(request('farmer_status'))){
                 $q->where('final_status_onboarding','like',request('farmer_status'));
             }
+            if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
+                $q->where('farmer_uniqueId',request('farmer_uniqueId'));
+            }
             return $q;
             })
             ->when('filter',function($w){
@@ -384,7 +388,7 @@ public function awd_pending_lists()
   	  $seasons = DB::table('seasons')->get();
       $status = request()->status;
       $others = "0";
-  	  return view('l2validator.aeration.pending-plot',compact('links','plots_paginate','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
+  	  return view('l2validator.aeration.pending-plot',compact('farmer_uniqueId','links','plots_paginate','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
   }
 
   public function awd_pending_detail($plotuniqueid,$aeration_no,$pipe_no){
@@ -606,6 +610,7 @@ public function awd_pending_lists()
      //level 1 validator get pending plot list of pipe function
 	  //Plot list
 	//   if(request()->ajax()){
+        $farmer_uniqueId = request('farmer_uniqueId')??'';
         $plots_paginate = Aeration::with('farmerapproved')->where('l2_status','Rejected')->where('l2_apprv_reject_user_id',auth()->user()->id)->whereHas('farmerapproved',function($q){
             if(auth()->user()->hasRole('L-2-Validator')){
                 $VendorLocation = DB::table('vendor_locations')->where('user_id',auth()->user()->id)->first();
@@ -632,6 +637,9 @@ public function awd_pending_lists()
         }
         if(request()->has('farmer_status') && !empty(request('farmer_status'))){
             $q->where('final_status_onboarding','like',request('farmer_status'));
+        }
+        if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
+            $q->where('farmer_uniqueId',request('farmer_uniqueId'));
         }
         return $q;
         })
@@ -674,7 +682,7 @@ public function awd_pending_lists()
         $seasons = DB::table('seasons')->get();
         $status = request()->status;
         $others = "0";
-      return view('l2validator.aeration.reject-plot',compact('links','plots_paginate','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
+      return view('l2validator.aeration.reject-plot',compact('farmer_uniqueId','links','plots_paginate','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
   }
 
   public function awd_reject_detail($plotuniqueid, $aeration_no,$pipe_no){
@@ -748,6 +756,7 @@ public function awd_pending_lists()
     //level 2 validator get pending plot list of pipe function
 	  //Plot list
 	//   if(request()->ajax()){
+        $farmer_uniqueId = request('farmer_uniqueId')??'';
   		$plots_paginate = Aeration::with('farmerapproved')->where('l2_status','Approved')->where('l2_apprv_reject_user_id',auth()->user()->id)->whereHas('farmerapproved',function($q){
             if(auth()->user()->hasRole('L-2-Validator')){
                 $VendorLocation = DB::table('vendor_locations')->where('user_id',auth()->user()->id)->first();
@@ -774,6 +783,9 @@ public function awd_pending_lists()
         }
         if(request()->has('farmer_status') && !empty(request('farmer_status'))){
              $q->where('final_status_onboarding','like',request('farmer_status'));
+        }
+        if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
+            $q->where('farmer_uniqueId',request('farmer_uniqueId'));
         }
         return $q;
   		})
@@ -818,7 +830,7 @@ public function awd_pending_lists()
   	  $seasons = DB::table('seasons')->get();
       $status = request()->status;
       $others = "0";
-  	  return view('l2validator.aeration.approved-plot',compact('links','plots_paginate','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
+  	  return view('l2validator.aeration.approved-plot',compact('farmer_uniqueId','links','plots_paginate','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
   }
 
   public function awd_approved_detail($plotuniqueid,$aeration_no,$pipe_no){

@@ -283,7 +283,9 @@ class FarmerViewController extends Controller
             ])
             ->with('state','district','taluka','panchayat','village','season:id,name')
             ->first();
-
+            if(!$Farmers){
+                return response()->json(['error' => True, 'Message' => 'No data'], 422);
+            }
             $farmerplotimg =  DB::table('final_farmer_land_img')->where('farmer_id', $Farmers->id)->where('farmer_unique_id', $request->farmer_uniqueId)->select('farmer_id', 'farmer_unique_id', 'plot_no', 'path')->get();
 
             $Farmers->state_name = $Farmers->state->name ?? null;

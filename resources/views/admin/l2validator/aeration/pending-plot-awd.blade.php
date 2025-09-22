@@ -206,13 +206,13 @@
                                                 <td>District</td><td>{{$plot->district->district}}</td>
                                             </tr>
                                             <tr>
-                                                <td>Taluka</td><td>{{$plot->taluka->taluka}}</td>
+                                                <td>Taluka</td><td>{{$plot->taluka->taluka??"-"}}</td>
                                             </tr>
                                             <tr>
-                                                <td>Panchayat</td><td>{{$plot->panchayat->panchayat}}</td>
+                                                <td>Panchayat</td><td>{{$plot->panchayat->panchayat??"-"}}</td>
                                             </tr>
                                             <tr>
-                                                <td>Village</td><td>{{$plot->village->village}}</td>
+                                                <td>Village</td><td>{{$plot->village->village??"-"}}</td>
                                             </tr>
                                             <tr>
                                                 <td>Latitude</td><td>{{$plot->latitude}}</td>

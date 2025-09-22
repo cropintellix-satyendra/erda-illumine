@@ -230,9 +230,8 @@ public function modulewise_count(Request $request){
                  $pipeinstallation = (int) $pipeinstallation;
                  $benifit = UserTarget::where('user_id',$userId)->where('module_name','farmer_benefit')->whereBetween('date', [$startDate, $endDate])->sum('count');
                  $benifit = (int) $benifit;
-
-
-                 return response()->json([
+                // Response
+                $response = [
                      'success' => true ,
                      'message' => 'Data Available',
                      'onboard_count' =>  $onboard,
@@ -241,7 +240,8 @@ public function modulewise_count(Request $request){
                      'pipeinstallation_count' => $pipeinstallation,
                      'aeration' => $aeration,
                      'farmer_benefit' => $benifit
-                 ], 200);
+                ];
+                 return response()->json($response, 200);
              }
     // else{
     //     return response()->json(['error' => true, 'message' => 'Something Went Wrong' ], 422);

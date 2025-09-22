@@ -43,6 +43,7 @@ use App\Exports\ExportPipe;
 use App\Models\State;
 use App\Models\District;
 use App\Models\Taluka;
+use Illuminate\Support\Facades\Log;
 // use App\Models\Panchayat;
 // use App\Models\Village;
 // use App\Models\FarmerPlot;
@@ -97,476 +98,276 @@ class TestController2 extends Controller
        
         // return response()->json(collect($data)->take(5));
     }
-
-
-    public function genrate_geojson_old(Request $request)
-    {
-
-       
-
-        set_time_limit(-1);
-        ini_set('memory_limit', '64000M');
-
-        // Assuming $uniqueIds contains the list of unique IDs
-        // $uniqueIds = ['33381P1'];
-        // $farmers = PipeInstallation::where('district','COOCHBEHAR')
-        // ->whereNULL('delete_polygon')
-        // ->get();
-        $farmers = [
-          4254,575,787,1048,4049,2184,2755,146,788,15066,15080,
-          15081,15093,15120,15132,15138,898,15016,15021,1045,15144,
-          174,4588,399,769,803,16074,397,1193,4776,4186,4188,4189,
-          4191,4207,4212,4991,3346,138,15110,15111,778,4247
-          ,4781,148,15126,15161,145,1774,543,4782,4813,4843,
-        ];
-        
-        
-        // dd($farmers);
-
-        $geojson = [
-            'type' => 'FeatureCollection',
-            'features' => [],
-        ];
-        
-        foreach ($farmers as $uniqueId) {
-            // dd($uniqueId);
-            $farmer = PipeInstallation::where('farmer_uniqueId', $uniqueId)->first(); 
-            if ($farmer && $farmer->ranges) {
-                $ranges = json_decode($farmer->ranges, true);
-                
-                // dd($ranges);
-                $coordinates = [];
-                // dd($coordinates);
-                foreach ($ranges as $range) {
-                    $coordinates[] = [
-                        'latitude' => $range['lat'],
-                        'longitude' => $range['lng'],
-                    ];
-                }
-        
-                // Construct GeoJSON for this unique ID
-                $feature = [
-                    'type' => 'Feature',
-                    'geometry' => [
-                        'type' => 'Polygon',
-                        'coordinates' => [array_map(function ($coord) {
-                            return [$coord['longitude'], $coord['latitude']];
-                        }, $coordinates)],
-                    ],
-                    'properties' => [
-                        'farmer_uniqueId'=> $farmer->farmer_uniqueId,
-                        'farmer_plot_uniqueid'=> $farmer->farmer_plot_uniqueid,
-                        'farmer_name'=> $farmer->farmerapproved->farmer_name??"NA",
-                        'plot_no'=> $farmer->plot_no,
-                        'ranges'=> $farmer->ranges,
-                        'polygon_date_time'=> $farmer->polygon_date_time,
-                        'date_time'=> $farmer->date_time,
-                        'date_survey'=> $farmer->date_survey,
-                        'surveyor_name'=> $farmer->surveyor_name,
-                        'status'=> $farmer->l2_status,
-                        'surveyor_mobile'=> $farmer->surveyor_mobile,
-                        'latitude'=> $farmer->latitude,
-                        'longitude'=> $farmer->longitude,
-                        'state' =>  $farmer->state,
-                        'district'=> $farmer->district,
-                        'taluka'=> $farmer->taluka,
-                        'village' => $farmer->village,
-                        'area_in_acers'=> $farmer->area_in_acers,
-                        'plot_area' =>  $farmer->plot_area,
-                        'validator_name'=> $farmer->validator->name??"NA",
-                    ],
-                ];
-        
-                $geojson['features'][] = $feature;
-            }
-        }
-        
-        // Serialize GeoJSON to JSON
-        $json = json_encode($geojson);
-
-      // Define the directory and file path to save the GeoJSON data
-        $directory = public_path('geojson'); // Path to the directory where you want to save the file
-        if (!file_exists($directory)) {
-            mkdir($directory, 0755, true); // Create the directory if it doesn't exist
-        }
-        $filename = 'farmers_polygon-assam.geojson';
-        $file_path = $directory . '/' . $filename;
-
-        // Save the GeoJSON data to the file
-        file_put_contents($file_path, $json);
-
-        // Check if the file was saved successfully
-        if (file_exists($file_path)) {
-            echo "GeoJSON data saved successfully to $file_path";
-        } else {
-            echo "Failed to save GeoJSON data";
-        }
-
-        return response()->json(['message'=>"genrted" ]);
-
-        
-
-    }
-
-
-    // public function genrate_geojson(Request $request)
-    // {
+ 
+ 
 
 
 
-    //     set_time_limit(-1);
-    //     ini_set('memory_limit', '72000M');
-
-    //     // Assuming $uniqueIds contains the list of unique IDs
-    //     // $uniqueIds = ['33381P1'];
-    //     // $farmers = PipeInstallation::where('district','COOCHBEHAR')
-    //     // ->whereNULL('delete_polygon')
-    //     // ->get();
-    //     $farmerUniqueIds = [
-    //         4254,575,787,1048,4049,2184,2755,146,788,15066,15080,
-    //         15081,15093,15120,15132,15138,898,15016,15021,1045,15144,
-    //         174,4588,399,769,803,16074,397,1193,4776,4186,4188,4189,
-    //         4191,4207,4212,4991,3346,138,15110,15111,778,4247
-    //         ,4781,148,15126,15161,145,1774,543,4782,4813,4843,
-    //     ];
-
-
-    //     // dd($farmers);
-
-    //     $geojson = [
-    //         'type' => 'FeatureCollection',
-    //         'features' => [],
-    //     ];
-
-    //     $chunkSize = 100;
-
-    //     // foreach ($farmers as $uniqueId) {
-    //         foreach (array_chunk($farmerUniqueIds, $chunkSize) as $chunk) {
-    //             $farmers_data = Polygon::whereIn('farmer_uniqueId', $chunk)->get();
-        
-    //             foreach ($farmers_data as $farmer) {
-    //                 if ($farmer && $farmer->ranges) {
-    //                     $ranges = json_decode($farmer->ranges, true);
-    //                     $coordinates = [];
-                
-    //                     foreach ($ranges as $range) {
-    //                         $coordinates[] = [
-    //                             'latitude' => $range['lat'],
-    //                             'longitude' => $range['lng'],
-    //                         ];
-    //                     }
-                
-    //                     // Ensure the last coordinate matches the first coordinate
-    //                     if (!empty($coordinates)) {
-    //                         $firstCoordinate = $coordinates[0];
-    //                         $lastCoordinate = end($coordinates);
-                
-    //                         if ($firstCoordinate['latitude'] !== $lastCoordinate['latitude'] ||
-    //                             $firstCoordinate['longitude'] !== $lastCoordinate['longitude']) {
-    //                             $coordinates[] = $firstCoordinate;
-    //                         }
-    //                     }
-                
-    //                     // Construct GeoJSON for this unique ID
-    //                     $feature = [
-    //                         'type' => 'Feature',
-    //                         'geometry' => [
-    //                             'type' => 'Polygon',
-    //                             'coordinates' => [array_map(function ($coord) {
-    //                                 return [$coord['longitude'], $coord['latitude']];
-    //                             }, $coordinates)],
-    //                         ],
-    //                         'properties' => [
-    //                             'farmer_uniqueId' => $farmer->farmer_uniqueId ?? "",
-    //                             'farmer_plot_uniqueid' => $farmer->farmer_plot_uniqueid ?? "",
-    //                             'farmer_name' => $farmer->farmerapproved->farmer_name ?? "NA",
-    //                             'plot_no' => $farmer->plot_no ?? "",
-    //                             'ranges' => $farmer->ranges,
-    //                             'polygon_date_time' => $farmer->polygon_date_time ?? "",
-    //                             'date_time' => $farmer->date_time ?? "",
-    //                             'date_survey' => $farmer->date_survey ?? "",
-    //                             'surveyor_name' => $farmer->surveyor_name ?? "",
-    //                             'status' => $farmer->l2_status ?? "",
-    //                             'surveyor_mobile' => $farmer->surveyor_mobile ?? "",
-    //                             'latitude' => $farmer->latitude ?? "",
-    //                             'longitude' => $farmer->longitude ?? "",
-    //                             'state' => $farmer->farmerapproved->state->name ?? "",
-    //                             'district' => $farmer->farmerapproved->district->district ?? "",
-    //                             'taluka' => $farmer->farmerapproved->taluka->taluka ?? "",
-    //                             'village' => $farmer->farmerapproved->village->village ?? "",
-    //                             'area_in_hectare' => $farmer->farmerapproved->area_in_acers ?? "",
-    //                             'plot_area' => $farmer->plot_area ?? "",
-    //                             'validator_name' => $farmer->PolygonValidation->users->name ?? "NA",
-    //                             // dd($farmer),
-    //                         ],
-    //                     ];  
-    //                     // dd($feature);
-                
-    //                     $geojson['features'][] = $feature;
-    //                 }
-    //             }
-                
-    //         }
-
-    //     // Serialize GeoJSON to JSON
-    //     $json = json_encode($geojson);
-
-    //     // Define the directory and file path to save the GeoJSON data
-    //     $directory = public_path('geojson'); // Path to the directory where you want to save the file
-    //     if (!file_exists($directory)) {
-    //         mkdir($directory, 0755, true); // Create the directory if it doesn't exist
-    //     }
-    //     $filename = 'polygon-geojson9.geojson';
-    //     $file_path = $directory . '/' . $filename;
-
-    //     // Save the GeoJSON data to the file
-    //     file_put_contents($file_path, $json);
-
-    //     // Check if the file was saved successfully
-    //     if (file_exists($file_path)) {
-    //         echo "GeoJSON data saved successfully to $file_path";
-    //     } else {
-    //         echo "Failed to save GeoJSON data";
-    //     }
-
-    //     return response()->json(['message' => "genrted"]);
-    // }
-
-//     public function genrate_geojson(Request $request)
-// {
-//     set_time_limit(-1);
-//     ini_set('memory_limit', '72000M');
-
-//     // Assuming $uniqueIds contains the list of unique IDs
-//     // $uniqueIds = ['33381P1'];
-//     // $farmers = PipeInstallation::where('district','COOCHBEHAR')
-//     // ->whereNULL('delete_polygon')
-//     // ->get();
-//     $farmerUniqueIds = [
-//         13975,11951,13713,14287,12265,12273,12538,10423,10673,14189,14396,14421,16590,13468,7420,7975,8247,9071,12142,12168,12708,13038,13040,13041,13050,7889,
-//         8504,8944,8962,8970,8984,9022,9242,10177,10182,10185,10187,10192,10317,10319,10322,10323,10324,10332,10336,10339,10458,10461,10489,10671,10672,10677,
-//         10680,10697,10699,10702,10810,10812,10814,11074,11648,12152,12387,12423,8788,9107,9117,9141,11780,14258,14490,9309,9353,11502,11582,16521,7640,7716,
-//         7771,7781,7785,8217,8243,8257,8283,8290,8294,8374,8439,8441,8450,10465,10473,10491,10518,10588,10888,11098,11532,11535,11536,11537,11538,11539,11540,
-//         11544,11546,11763,11766,11770,12368,12375,12385,12402,12436,12450,12463,13087,13127,13532,13547,13569,14671,7469,8037,8059,12431,12434,12435,12442,
-//         12653,8282,8289,8293,8363,8478,8493,8507,8509,8629,8633,8640,8652,8656,8698,9254,10082,10093,10101,10719,10739,10746,10755,10780,10838,10845,11103,
-//         11148,11156,11181,11190,11198,12197,12198,12206,12564,12996,13141,13147,13529,13531,13535,13539,16578,16591,16597,16680,7310,7320,7322,7325,7408,7441,
-//         7457,7484,7524,7573,7589,7597,7615,7636,7658,7829,7830,7844,7848,7858,7861,7897,7901,7906,7915,7988,8028,8036,8045,8352,8358,8913,8921,8958,8967,8973,
-//         8979,8982,9074,9240,9307,9311,9316,9322,9329,9334,9376,10140,10141,10156,10161,10175,10190,10340,10343,10422,10451,10462,11493,11579,11684,11686,11725,
-//         11743,11746,11824,11833,11943,11956,11959,11965,11973,12321,12475,12479,12482,12863,12868,12870,13503,13515,13523,14140,14143,14144,14145,14226,14275,
-//         14307,14685,14688,16531,16670,12201,12993,12994,12995,14478,7354,7404,7521,8268,11259,11550,11737,12059,12767,13100,13145,14648,7689,8452,12665,9075,
-//         11967,7890,7932,8933,9592,10110,11498,11583,11828,12733,12735,8284,9220,9223,11049,11057,11059,12541,12563,13028,13032,13033,13035,13036,13042,13487,
-//         13495,13170,13195,14738,14957,7350,7832,7925,8392,8468,9265,7561,11703,14722,14805,8700,8741,11710,11724,12041,12083,12284,12318,12693,14469,14868,7417,
-//         7421,7433,7439,9228,9230,10691,13980,14171,14485,14752,14757,14942,14949,7888,8596,11610,11611,11614,11618,11621,11628,11630,11638,11642,11645,11647,11649,
-//         11654,11900,11904,11907,12082,12094,12098,12104,12105,12107,12114,12116,12122,12128,12149,12389,12392,12395,12406,12408,12411,12416,12537,12539,13996,14165,
-//         14302,16577,16583,16588,16595,11953,7824,8957,8628,11494,9327,14971,8476,11016,11038,11092,14185,14283,13976,13985,8948,9027,13973,14168,14169,14481,
-//     ];
-
-
-//     // dd($farmers);
-
-//     $geojson = [
-//         'type' => 'FeatureCollection',
-//         'features' => [],
-//     ];
-
-//     $chunkSize = 100;
-//     // foreach ($farmers as $uniqueId) {
-//         foreach (array_chunk($farmerUniqueIds, $chunkSize) as $chunk) {
-//             $farmers_data = Polygon::whereIn('farmer_uniqueId', $chunk)->get();
-    
-//             foreach ($farmers_data as $farmer) {
-//                 if ($farmer && $farmer->ranges) {
-//                     $ranges = json_decode($farmer->ranges, true);
-//                     $coordinates = [];
-            
-//                     foreach ($ranges as $range) {
-//                         $coordinates[] = [
-//                             'latitude' => (float) $range['lat'],
-//                             'longitude' =>  (float) $range['lng'],
-//                         ];
-//                     }
-            
-//                     // Ensure the last coordinate matches the first coordinate
-//                     if (!empty($coordinates)) {
-//                         $firstCoordinate = $coordinates[0];
-//                         $lastCoordinate = end($coordinates);
-            
-//                         if ($firstCoordinate['latitude'] !== $lastCoordinate['latitude'] ||
-//                             $firstCoordinate['longitude'] !== $lastCoordinate['longitude']) {
-//                             $coordinates[] = $firstCoordinate;
-//                         }
-//                     }
-            
-//                     // Construct GeoJSON for this unique ID
-//                     $feature = [
-//                         'type' => 'Feature',
-//                         'geometry' => [
-//                             'type' => 'Polygon',
-//                             'coordinates' => [array_map(function ($coord) {
-//                                 return [(float) $coord['longitude'], (float) $coord['latitude']];
-//                             }, $coordinates)],
-//                         ],
-//                         'properties' => [
-//                             'farmer_uniqueId' => $farmer->farmer_uniqueId ?? "",
-//                             'farmer_plot_uniqueid' => $farmer->farmer_plot_uniqueid ?? "",
-//                             'farmer_name' => $farmer->farmerapproved->farmer_name ?? "NA",
-//                             'plot_no' => $farmer->plot_no ?? "",
-//                             'ranges' => $farmer->ranges,
-//                             'polygon_date_time' => $farmer->polygon_date_time ?? "",
-//                             'date_time' => $farmer->date_time ?? "",
-//                             'date_survey' => $farmer->date_survey ?? "",
-//                             'surveyor_name' => $farmer->surveyor_name ?? "",
-//                             'status' => $farmer->l2_status ?? "",
-//                             'surveyor_mobile' => $farmer->surveyor_mobile ?? "",
-//                             'latitude' => $farmer->latitude ?? "",
-//                             'longitude' => $farmer->longitude ?? "",
-//                             'state' => $farmer->farmerapproved->state->name ?? "",
-//                             'district' => $farmer->farmerapproved->district->district ?? "",
-//                             'taluka' => $farmer->farmerapproved->taluka->taluka ?? "",
-//                             'village' => $farmer->farmerapproved->village->village ?? "",
-//                             'area_in_hectare' => $farmer->farmerapproved->area_in_acers ?? "",
-//                             'plot_area' => $farmer->plot_area ?? "",
-//                             'validator_name' => $farmer->PolygonValidation->users->name ?? "NA",
-//                             // dd($farmer),
-//                         ],
-//                     ];  
-//                     // dd($feature);
-            
-//                     $geojson['features'][] = $feature;
-//                 }
-//             }
-            
-//         }
-
-//     // Serialize GeoJSON to JSON
-//     $json = json_encode($geojson);
-
-//     // Define the directory and file path to save the GeoJSON data
-//     $directory = public_path('geojson'); // Path to the directory where you want to save the file
-//     if (!file_exists($directory)) {
-//         mkdir($directory, 0755, true); // Create the directory if it doesn't exist
-//     }
-//     $filename = 'UK-polygon-geojson9.geojson';
-//     $file_path = $directory . '/' . $filename;
-
-//     // Save the GeoJSON data to the file
-//     file_put_contents($file_path, $json);
-
-//     // Check if the file was saved successfully
-//     if (file_exists($file_path)) {
-//         echo "GeoJSON data saved successfully to $file_path";
-//     } else {
-//         echo "Failed to save GeoJSON data";
-//     }
-
-//     return response()->json(['message' => "generated"]);
-// }
-
-
-
-public function genrate_geojson(Request $request)
+public function genrate_geojson_data_kml(Request $request)
 {
     try {
-        set_time_limit(-1);
+        // Set comprehensive timeout and memory settings
+        set_time_limit(0); // 0 = no time limit
         ini_set('memory_limit', '72000M');
-
-        // Check if a file was uploaded
-        if (!$request->hasFile('file')) {
-            return response()->json(['message' => 'No file uploaded'], 400);
+        ini_set('max_execution_time', 0);
+        ini_set('max_input_time', -1);
+        
+        // Additional timeout settings
+        if (function_exists('ignore_user_abort')) {
+            ignore_user_abort(true);
+        }
+        
+        // Set HTTP timeout headers
+        if (!headers_sent()) {
+            header('X-Accel-Buffering: no'); // Disable nginx buffering
         }
 
-        $file = $request->file('file');
-
-        // Extract Farmer Unique IDs from the uploaded Excel file
-        $farmerData = [];
-        $data = Excel::toArray([], $file);
-        foreach ($data[0] as $rowIndex => $row) {
-            if ($rowIndex === 0) {
-                continue;
-            }
-            $farmer = new FinalFarmer;
-            $farmer->surveyor_id = 3783;
-            $farmer->organization_id = 1;
-            $farmer->farmer_survey_id = 3783;
-            $farmer->farmer_name = $row[0];
-            $farmer->total_plot_area = $row[1];
-            $farmer->available_area = $row[1];
-            $farmer->area_in_acers = $row[1];
-            $farmer->plot_no = 1;
-            $farmer->own_area_in_acres = $row[1];
-            $farmer->plot_area = $row[8];
-            $farmer->land_ownership = "Own";
-            $farmer->actual_owner_name = $row[0];
-            $farmer->final_status = "Approved";
-            $farmer->onboard_completed = "Approved";
-            $farmer->financial_year = "2025-2025";
-            $farmer->season = "Kharif";
-            $farmer->country_id = 101;
-
-            $state = State::where('name', $row[2])->first();
-            if (!$state) {
-                $state = State::create(['name' => $row[2],"country_id"=>101,"status"=>1]);
-            }
-            $farmer->state_id = $state->id ?? null;
-
-            $district = District::where('district', $row[3])->where('state_id', $farmer->state_id)->first();
-            if (!$district) {
-                $district = District::create(['district' => $row[3],"state_id"=>$farmer->state_id,"status"=>1]);
-            }
-            $farmer->district_id = $district->id ?? null;
-
-            $taluka = Taluka::where('taluka', $row[4])->where('district_id', $farmer->district_id)->where('state_id', $farmer->state_id)->first();
-            if (!$taluka) {
-                $taluka = Taluka::create(['taluka' => $row[4],"district_id"=>$farmer->district_id,"state_id"=>$farmer->state_id,"status"=>1]);
-            }
-            $farmer->taluka_id = $taluka->id ?? null;
-
-            $panchayat = Panchayat::where('panchayat', $row[5])->where('taluka_id', $farmer->taluka_id)->where('district_id', $farmer->district_id)->where('state_id', $farmer->state_id)->first();
-            if (!$panchayat) {
-                $panchayat = Panchayat::create(['panchayat' => $row[5],"taluka_id"=>$farmer->taluka_id,"district_id"=>$farmer->district_id,"state_id"=>$farmer->state_id,"status"=>1]);
-            }
-            $farmer->panchayat_id = $panchayat->id ?? null;
-
-            $village = Village::where('village', $row[7])->where('panchayat_id', $farmer->panchayat_id)->where('taluka_id', $farmer->taluka_id)->where('district_id', $farmer->district_id)->where('state_id', $farmer->state_id)->first();
-            if (!$village) {
-                $village = Village::create(['village' => $row[7],"panchayat_id"=>$farmer->panchayat_id,"taluka_id"=>$farmer->taluka_id,"district_id"=>$farmer->district_id,"state_id"=>$farmer->state_id,"status"=>1]);
-            }
-            $farmer->village_id = $village->id ?? null;
-            $farmer->save();
-            $farmerId = $farmer->id+1000;
-            $farmer->farmer_uniqueId = $farmerId;
-            $farmer->farmer_plot_uniqueid = $farmerId."P1";
-            $farmer->save();
-
-            $FarmerPlot = new FarmerPlot;
-            $FarmerPlot->farmer_id = $farmer->id;
-            $FarmerPlot->farmer_uniqueId = $farmer->farmer_uniqueId;
-            $FarmerPlot->farmer_plot_uniqueid = $farmer->farmer_plot_uniqueid;
-            $FarmerPlot->plot_no = $farmer->plot_no;
-            $FarmerPlot->area_in_acers = $farmer->area_in_acers;
-            $FarmerPlot->daag_number = $row[9];
-            $FarmerPlot->land_ownership = $farmer->land_ownership;
-            $FarmerPlot->actual_owner_name = $farmer->actual_owner_name;
-            $FarmerPlot->final_status = $farmer->final_status;
-            $FarmerPlot->status = $farmer->final_status;
-            $FarmerPlot->save();
+        // Check if a KML file was uploaded
+        if (!$request->hasFile('kml_file')) {
+            return response()->json(['message' => 'No KML file uploaded. Please upload a KML file with key "kml_file"'], 400);
         }
-        echo "Success";
-        // Code that might throw an exception
+
+        $file = $request->file('kml_file');
+        
+        // Validate file type
+        if ($file->getClientOriginalExtension() !== 'kml') {
+            return response()->json(['message' => 'Invalid file type. Please upload a KML file'], 400);
+        }
+
+        // Load and parse the KML file
+        $kml = simplexml_load_file($file->getPathname());
+        
+        if ($kml === false) {
+            return response()->json(['message' => 'Failed to parse KML file'], 400);
+        }
+
+        // Register the KML namespace
+        $kml->registerXPathNamespace('kml', 'http://www.opengis.net/kml/2.2');
+        
+        // Find all Placemark elements
+        $placemarks = $kml->xpath('//kml:Placemark');
+        
+        $processedData = [];
+        $count = 0;
+        
+        foreach ($placemarks as $placemark) {
+            
+            // Extract basic information
+            $name = (string) $placemark->name;
+           
+            // Extract ExtendedData
+            $extendedData = [];
+            if (isset($placemark->ExtendedData->SchemaData->SimpleData)) {
+                foreach ($placemark->ExtendedData->SchemaData->SimpleData as $simpleData) {
+                    $extendedData[(string) $simpleData['name']] = (string) $simpleData;
+                }
+            }
+            
+            // Extract coordinates and convert to [[lat, lng], [lat, lng]] format
+            $coordinates = [];
+            if (isset($placemark->MultiGeometry->Polygon->outerBoundaryIs->LinearRing->coordinates)) {
+                $coordsString = (string) $placemark->MultiGeometry->Polygon->outerBoundaryIs->LinearRing->coordinates;
+                
+                // Split coordinates by spaces and process each coordinate pair
+                $coordPairs = explode(' ', trim($coordsString));
+                
+                foreach ($coordPairs as $coordPair) {
+                    if (!empty(trim($coordPair))) {
+                        $parts = explode(',', trim($coordPair));
+                        if (count($parts) >= 2) {
+                            $lng = floatval($parts[0]); // Longitude (X)
+                            $lat = floatval($parts[1]); // Latitude (Y)
+                            $coordinates[] = ["lat"=>$lat, "lng"=>$lng]; // Format: [lat, lng]
+                        }
+                    }
+                }
+            }
+             
+            // Extract farmer ID from Client_ID field
+            $rawClientId = $extendedData['Client_ID'] ?? '';
+            $farmerId = preg_replace('/[cC]/', '', (string) $rawClientId); // Remove 'c' and 'C'
+            $farmerId = preg_replace('/\D+/', '', $farmerId); // Remove all non-digits
+            $farmerId = ltrim($farmerId, '0'); // Remove leading zeros
+            
+            $count++; 
+            
+            if (!$farmerId) {
+                echo "Skipping polygon {$count}: No farmer ID found in Client_ID field\n";
+                continue; // Skip if no farmer ID found
+            }
+            
+            // Extract area in hectares - Dag_Wise_l is total area, FINAL_Q_GI is plot area
+            $totalArea = isset($extendedData['Dag_Wise_l']) && is_numeric($extendedData['Dag_Wise_l']) ? (float) $extendedData['Dag_Wise_l'] : null;
+            $plotArea = isset($extendedData['FINAL_Q_GI']) && is_numeric($extendedData['FINAL_Q_GI']) ? (float) $extendedData['FINAL_Q_GI'] : null;
+            
+            // Extract farmer name from F_client_l field
+            $farmerName = $extendedData['F_client_l'] ?? ('Farmer ' . $farmerId);
+            
+            echo "Processing farmer ID: {$farmerId}, Name: {$farmerName}, Area: {$totalArea} hectares\n";
+            
+            // Extract collector information
+            $collectorFirstName = $extendedData['F_collecto'] ?? '';
+            $collectorLastName = $extendedData['F_collec_1'] ?? '';
+            $collectorName = trim($collectorFirstName . ' ' . $collectorLastName);
+            
+            // Get coordinates from X and Y fields
+            $lat = isset($extendedData['Y']) && is_numeric($extendedData['Y']) ? (float) $extendedData['Y'] : null;
+            $lng = isset($extendedData['X']) && is_numeric($extendedData['X']) ? (float) $extendedData['X'] : null;
+            
+            // If X,Y coordinates are not available, use first coordinate from polygon
+            if (!$lat || !$lng) {
+                $lat = $coordinates[0]['lat'] ?? null;
+                $lng = $coordinates[0]['lng'] ?? null;
+            }
+            
+            // Find or create FinalFarmer
+            $finalFarmer = FinalFarmer::where('farmer_uniqueId', $farmerId)->first();
+            
+            if (!$finalFarmer) {
+                // Create new FinalFarmer
+                $finalFarmer = new FinalFarmer;
+                $finalFarmer->surveyor_id = 3783;
+                $finalFarmer->organization_id = 2;
+                $finalFarmer->farmer_survey_id = 3783;
+                $finalFarmer->farmer_name = $farmerName;
+                $finalFarmer->total_plot_area = $totalArea !== null ? $totalArea : 0;
+                $finalFarmer->available_area = $totalArea !== null ? $totalArea : 0;
+                $finalFarmer->area_in_acers = $totalArea !== null ? $totalArea : 0;
+                $finalFarmer->plot_no = 1;
+                $finalFarmer->own_area_in_acres = $totalArea !== null ? $totalArea : 0;
+                $finalFarmer->plot_area = $plotArea !== null ? $plotArea : 0;
+                $finalFarmer->land_ownership = "Own";
+                $finalFarmer->actual_owner_name = $farmerName;
+                $finalFarmer->final_status = "Approved";
+                $finalFarmer->onboard_completed = "Approved";
+                $finalFarmer->financial_year = "2025-2025";
+                $finalFarmer->season = "Kharif";
+                $finalFarmer->country_id = 101;
+                $finalFarmer->state_id = 1;
+                $finalFarmer->final_status_onboarding = "Completed";
+                $finalFarmer->status_onboarding = "Completed";
+                $finalFarmer->onboarding_form = "1";
+                
+                $finalFarmer->district_id = 2;
+                $finalFarmer->block_name = null; // Not available in this KML
+                $finalFarmer->panchayat_name = null; // Not available in this KML
+                $finalFarmer->village_name = null; // Not available in this KML
+                
+                // Add collector information if available
+                if ($collectorName) {
+                    $finalFarmer->surveyor_name = $collectorName;
+                }
+
+                // Assign unique IDs
+                $finalFarmer->farmer_uniqueId = $farmerId;
+                $finalFarmer->farmer_plot_uniqueid = $farmerId . 'P1';
+                $finalFarmer->save();
+                
+                // Create location hierarchy - using default values since location data not available in this KML
+                $this->createLocationHierarchy($finalFarmer, 'Murshidabad', 'Default Block', 'Default Panchayat', 'Default Village');
+                
+                // Create P1 FarmerPlot
+                $farmerPlot = new FarmerPlot;
+                $farmerPlot->farmer_id = $finalFarmer->id;
+                $farmerPlot->farmer_uniqueId = $farmerId;
+                $farmerPlot->farmer_plot_uniqueid = $farmerId . 'P1';
+                $farmerPlot->plot_no = 1;
+                $farmerPlot->area_in_acers = $totalArea !== null ? $totalArea : 0;
+                $farmerPlot->area_in_other = $totalArea !== null ? $totalArea : 0;
+                $farmerPlot->area_in_other_unit = $totalArea !== null ? $totalArea : 0;
+                $farmerPlot->area_acre_awd = $totalArea !== null ? $totalArea : 0;
+                $farmerPlot->area_other_awd = $totalArea !== null ? $totalArea : 0;
+                $farmerPlot->area_other_awd_unit = $totalArea !== null ? $totalArea : 0;
+                $farmerPlot->land_ownership = $finalFarmer->land_ownership;
+                $farmerPlot->actual_owner_name = $finalFarmer->actual_owner_name;
+                $farmerPlot->final_status = $finalFarmer->final_status;
+                $farmerPlot->status = $finalFarmer->final_status;
+                $farmerPlot->save();
+                
+                $plotNo = '1';
+            } else {
+                // Farmer exists, get the next plot number
+                $existingPlotsCount = FarmerPlot::where('farmer_uniqueId', $farmerId)->count();
+                $plotNo = (string)($existingPlotsCount + 1);
+                $plotUniqueId = $farmerId . 'P' . $plotNo;
+                
+                // Create new plot for existing farmer
+                $targetFarmer = $finalFarmer->replicate();
+                $targetFarmer->plot_no = $plotNo;
+                $targetFarmer->farmer_plot_uniqueid = $plotUniqueId;
+                if ($totalArea !== null || $plotArea !== null) {
+                    $targetFarmer->plot_area = $plotArea;
+                    $targetFarmer->area_in_acers = $totalArea;
+                }
+                $targetFarmer->save();
+                
+                // Create new FarmerPlot
+                $basePlot = FarmerPlot::where('farmer_uniqueId', $farmerId)->where('plot_no', 1)->first();
+                if ($basePlot) {
+                    $targetFarmerPlot = $basePlot->replicate();
+                    $targetFarmerPlot->farmer_id = $targetFarmer->id;
+                    $targetFarmerPlot->farmer_plot_uniqueid = $plotUniqueId;
+                    $targetFarmerPlot->plot_no = $plotNo;
+                    if ($totalArea !== null || $plotArea !== null) {
+                        $targetFarmerPlot->area_in_acers = $totalArea;
+                        $targetFarmerPlot->area_in_other = $totalArea;
+                        $targetFarmerPlot->area_in_other_unit = $totalArea;
+                        $targetFarmerPlot->area_acre_awd = $totalArea;
+                        $targetFarmerPlot->area_other_awd = $totalArea;
+                        $targetFarmerPlot->area_other_awd_unit = $totalArea;
+                    }
+                    $targetFarmerPlot->save();
+                }
+                
+                $finalFarmer = $targetFarmer;
+            }
+            
+            // Create Polygon
+            $polygon = new Polygon;
+            $polygon->farmer_uniqueId = $farmerId;
+            $polygon->farmer_id = $finalFarmer->id;
+            $polygon->farmer_plot_uniqueid = $farmerId . 'P' . $plotNo;
+            $polygon->ranges = json_encode($coordinates);
+            $polygon->plot_no = $plotNo;
+            $polygon->final_status = "Approved";
+            $polygon->area_units = "Hectare";
+            $polygon->latitude = $lat;
+            $polygon->longitude = $lng;
+            if ($totalArea !== null || $plotArea !== null) $polygon->plot_area = $plotArea;
+            $polygon->save();
+        }
+        
+        echo "\nTotal polygons processed: {$count}\n";
+        
+        return response()->json([
+            'message' => 'KML file processed successfully',
+            'total_polygons' => $count,
+        ]);
+        
     } catch (\Exception $e) {
         return response()->json([
-            'message' => 'Import failed',
+            'message' => 'Processing failed',
             'error' => $e->getMessage(),
             'line' => $e->getLine(),
         ], 500);
     }
-
 }
 
-public function genrate_geojson_data(Request $request)
+public function genrate_geojson(Request $request)
 {
-    set_time_limit(-1);
+    // Set comprehensive timeout and memory settings
+    set_time_limit(0);
     ini_set('memory_limit', '72000M');
+    ini_set('max_execution_time', 0);
+    ini_set('max_input_time', -1);
+    
+    if (function_exists('ignore_user_abort')) {
+        ignore_user_abort(true);
+    }
+    
+    if (!headers_sent()) {
+        header('X-Accel-Buffering: no');
+    }
 
     // Check if a file was uploaded
     if (!$request->hasFile('file')) {
@@ -583,9 +384,54 @@ public function genrate_geojson_data(Request $request)
             // Skip the header row
             continue;
         }
-        $farmerUniqueIds[] = $row[3]; // Assuming column index 2 (3rd column)
-    }
+        
+        $farmerId = preg_replace('/[cC]/', '', (string) $row[2]); // Remove 'c' and 'C'
+        $farmerId = preg_replace('/\D+/', '', $farmerId); // Remove all non-digits
+        $farmerId = ltrim($farmerId, '0'); // Remove leading zeros
+        $finalFarmer = FinalFarmer::where('farmer_uniqueId', $farmerId)->get();
+        if($finalFarmer->count() > 0){
+            foreach($finalFarmer as $farmer){
+                $blockName = $row[6];
+                // if($blockName == 'Kushamndi'){
+                //     $blockName = 'Kushmandi';
+                // }
+                try {
+                    $block = Taluka::where('taluka', $blockName)->where('district_id', $farmer->district_id)->first();
+                } catch (\Throwable $th) {
+                   Log::info("Block ".$blockName);
+                }
+                
+                $panchayatName = $row[9];
+                // if($panchayatName == 'Berail'){
+                //     $panchayatName = 'Beroil';
+                // }
+                
+                try {
+                    $panchayat = Panchayat::where('panchayat', $panchayatName)->where('taluka_id', $block->id)->first();
+                } catch (\Throwable $th) {
+                   Log::info("Block ".$blockName);
+                }
+                        
+                $villageName = $row[10];
 
+                try {
+                    $village = Village::where('village', $villageName)->where('panchayat_id', $panchayat->id)->first();
+                } catch (\Throwable $th) {
+                   Log::info("Panchayat ".$panchayatName);
+                }
+                if(isset($village) && $village){
+
+                }else{
+                   Log::info("Village ".$villageName);
+                }
+                // $village = Village::where('village', $villageName)->where('panchayat_id', $panchayat->id)->first();
+                // dd($block,$panchayat,$village);
+            }
+        }
+        // $farmerUniqueIds[] = $row[3]; // Assuming column index 2 (3rd column)
+    }
+    return response()->json(['message' => 'Farmer Location Updated Successfully'], 200);
+    die;
     // Initialize GeoJSON structure
     $geojson = [
         'type' => 'FeatureCollection',
@@ -677,8 +523,19 @@ public function genrate_geojson_data(Request $request)
 
     public function aeration_sheet(Request $request)
 {
-    set_time_limit(-1);
+    // Set comprehensive timeout and memory settings
+    set_time_limit(0);
     ini_set('memory_limit', '64000M');
+    ini_set('max_execution_time', 0);
+    ini_set('max_input_time', -1);
+    
+    if (function_exists('ignore_user_abort')) {
+        ignore_user_abort(true);
+    }
+    
+    if (!headers_sent()) {
+        header('X-Accel-Buffering: no');
+    }
 
     $query = Aeration::with(['farmerapproved','PipeInstallation'])->where('aeration_no', $request->aeration_no)
                      ->whereHas('farmerapproved', function ($q) use ($request) {
@@ -728,8 +585,19 @@ public function genrate_geojson_data(Request $request)
 
 public function polygon_sheet(Request $request) 
 {
-    set_time_limit(-1);
+    // Set comprehensive timeout and memory settings
+    set_time_limit(0);
     ini_set('memory_limit', '64000M');
+    ini_set('max_execution_time', 0);
+    ini_set('max_input_time', -1);
+    
+    if (function_exists('ignore_user_abort')) {
+        ignore_user_abort(true);
+    }
+    
+    if (!headers_sent()) {
+        header('X-Accel-Buffering: no');
+    }
 
     $query = Polygon::with(['farmerapproved','seasons','PolygonValidation'])->where('delete_polygon','!=','1')
                      ->whereHas('farmerapproved', function ($q) use ($request) {
@@ -768,8 +636,19 @@ public function polygon_sheet(Request $request)
 public function pipe_sheet(Request $request) 
 {
     // dd("in");
-    set_time_limit(-1);
+    // Set comprehensive timeout and memory settings
+    set_time_limit(0);
     ini_set('memory_limit', '64000M');
+    ini_set('max_execution_time', 0);
+    ini_set('max_input_time', -1);
+    
+    if (function_exists('ignore_user_abort')) {
+        ignore_user_abort(true);
+    }
+    
+    if (!headers_sent()) {
+        header('X-Accel-Buffering: no');
+    }
 
     $query = PipeInstallationPipeImg::with(['farmerapproved'])
                      ->whereHas('farmerapproved', function ($q) use ($request) {
@@ -806,8 +685,19 @@ public function pipe_sheet(Request $request)
 
 public function onboarding_sheet(Request $request) 
 {
-    set_time_limit(-1);
+    // Set comprehensive timeout and memory settings
+    set_time_limit(0);
     ini_set('memory_limit', '250000M');
+    ini_set('max_execution_time', 0);
+    ini_set('max_input_time', -1);
+    
+    if (function_exists('ignore_user_abort')) {
+        ignore_user_abort(true);
+    }
+    
+    if (!headers_sent()) {
+        header('X-Accel-Buffering: no');
+    }
 
     $query = FinalFarmer::with(['users','FinalUserApprovedRejected','validator'])
                             ->where('plot_no',1);
@@ -839,35 +729,7 @@ public function onboarding_sheet(Request $request)
 
 
 public function storeFarmerAwdData()
-    {
-
-        // $data = PipeInstallation::select('farmer_uniqueId', DB::raw('SUM(plot_area) as total_plot_area'))
-        // // ->groupBy('farmer_uniqueId')
-        // ->get();
-
-        //     // Prepare data for insertion/update
-        //     $values = [];
-        //     foreach ($data as $entry) {
-        //     $values[] = [
-        //     'farmer_uniqueId' => $entry->farmer_uniqueId,
-        //     'total_plot_area' => $entry->total_plot_area
-        //     ];
-        //     }
-
-        //     // Insert data into FarmerAwd table using the "on duplicate key update" feature
-        //     $sql = 'INSERT INTO farmer_awds (farmer_uniqueId, total_plot_area) VALUES ';
-        //     $sql .= collect($values)->map(function ($value) {
-        //     return '(' . $value['farmer_uniqueId'] . ', ' . $value['total_plot_area'] . ')';
-        //     })->implode(', ');
-        //     $sql .= ' ON DUPLICATE KEY UPDATE total_plot_area = VALUES(total_plot_area)';
-
-        //     // Execute the SQL query
-        //     DB::statement($sql);
-
-        //     return response()->json(['message' => 'Data stored successfully']);
-
-        
-        // dd("in");
+    { 
         PipeInstallation::select('farmer_uniqueId', 'plot_area')
         ->chunk(1000, function ($dataChunk) {
             // Process each chunk of data
@@ -1046,17 +908,6 @@ public function storeFarmerAwdData()
     
     public function upload_polygon(Request $request)
     {
-        // Validate GeoJSON/JSON file input
-        // $validator = Validator::make($request->all(), [
-        //     'file' => 'required|file|mimes:json,geojson|mimetypes:application/json,application/geo+json,text/plain',
-        // ]);
-
-        // if ($validator->fails()) {
-        //     return response()->json([
-        //         'message' => 'Invalid file. Allowed types: .geojson, .json',
-        //         'errors'  => $validator->errors(),
-        //     ], 422);
-        // }
 
         try {
             $file = $request->file('file');
@@ -1180,20 +1031,20 @@ public function storeFarmerAwdData()
 
     public function upload_kml_polygons(Request $request)
     {
-        set_time_limit(-1);
+        // Set comprehensive timeout and memory settings
+        set_time_limit(0);
         ini_set('memory_limit', '64000M');
-
-        // Validate KML upload
-        // $validator = Validator::make($request->all(), [
-        //     'file' => 'required|file|mimes:kml,xml|mimetypes:text/xml,application/xml,application/vnd.google-earth.kml+xml,text/plain',
-        // ]);
-        // if ($validator->fails()) {
-        //     return response()->json([
-        //         'message' => 'Invalid file. Allowed types: .kml, .xml',
-        //         'errors'  => $validator->errors(),
-        //     ], 422);
-        // }
-
+        ini_set('max_execution_time', 0);
+        ini_set('max_input_time', -1);
+        
+        if (function_exists('ignore_user_abort')) {
+            ignore_user_abort(true);
+        }
+        
+        if (!headers_sent()) {
+            header('X-Accel-Buffering: no');
+        }
+ 
         try {
             $file = $request->file('file');
             $xml = @simplexml_load_file($file->getRealPath());
@@ -1742,6 +1593,56 @@ public function storeFarmerAwdData()
         return $finalFarmer;
     }
     public function update_location(){
+    }
+
+    private function createLocationHierarchy($finalFarmer, $districtName, $blockName, $panchayatName, $villageName)
+    {
+        // Create District
+        if (!empty($districtName)) {
+            $district = District::whereRaw("CONVERT(`district` USING utf8mb4) COLLATE utf8mb4_unicode_ci = ?", [$districtName])
+                ->where('state_id', $finalFarmer->state_id)->first();
+            if ($district) {
+                $finalFarmer->district_id = $district->id ?? null;
+            }
+            
+        }
+
+        // Create Taluka (Block)
+        if (!empty($blockName) && !empty($finalFarmer->district_id)) {
+            $taluka = Taluka::whereRaw("CONVERT(`taluka` USING utf8mb4) COLLATE utf8mb4_unicode_ci = ?", [$blockName])
+                ->where('district_id', $finalFarmer->district_id)->where('state_id', $finalFarmer->state_id)->first();
+            if ($taluka) {
+                $finalFarmer->taluka_id = $taluka->id ?? null;
+            }
+            
+        }
+
+        // Create Panchayat
+        if (!empty($panchayatName) && !empty($finalFarmer->taluka_id) && !empty($finalFarmer->district_id)) {
+            $panchayat = Panchayat::whereRaw("CONVERT(`panchayat` USING utf8mb4) COLLATE utf8mb4_unicode_ci = ?", [$panchayatName])
+                ->where('taluka_id', $finalFarmer->taluka_id)
+                ->where('district_id', $finalFarmer->district_id)
+                ->where('state_id', $finalFarmer->state_id)->first();
+            if ($panchayat) {
+                $finalFarmer->panchayat_id = $panchayat->id ?? null;
+            }
+            
+        }
+
+        // Create Village
+        if (!empty($villageName) && !empty($finalFarmer->panchayat_id) && !empty($finalFarmer->taluka_id) && !empty($finalFarmer->district_id)) {
+            $village = Village::whereRaw("CONVERT(`village` USING utf8mb4) COLLATE utf8mb4_unicode_ci = ?", [$villageName])
+                ->where('panchayat_id', $finalFarmer->panchayat_id)
+                ->where('taluka_id', $finalFarmer->taluka_id)
+                ->where('district_id', $finalFarmer->district_id)
+                ->where('state_id', $finalFarmer->state_id)->first();
+            if ($village) {
+                $finalFarmer->village_id = $village->id ?? null;
+            }
+            $finalFarmer->village_id = $village->id ?? null;
+        }
+
+        $finalFarmer->save();
     }
 
     public function upload_excel_data(Request $request){
