@@ -30,7 +30,9 @@ use App\Models\PlotStatusRecord;
 use App\Models\FarmerQuestion;
 use App\Models\FarmerFarmDetails;
 use App\Models\UserTarget;
-use Illuminate\Support\Facades\Storage ;
+use Illuminate\Support\Facades\Storage;
+use App\Models\PipeSetting;
+use App\Models\Polygon;
 
 class FarmerController extends Controller
 {
@@ -1292,4 +1294,101 @@ return response()->json([
       return response()->json(['success' => false, 'message' => 'Mobile number does not exist'], 200);
     }
   }
+
+  public function get_farmer_details(Request $request)
+  {
+    try {
+      $validator = Validator::make($request->all(), [
+        'farmerplotuniqueid' => 'required',
+      ]);
+      $farmerplotuniqueid = $request->farmerplotuniqueid;
+      $farmer = FinalFarmer::
+          select([
+            'final_farmers.id', 
+            'final_farmers.surveyor_id',
+            'final_farmers.organization_id',
+            'final_farmers.farmer_uniqueId',
+            'final_farmers.farmer_survey_id',
+            'final_farmers.farmer_name',
+            'final_farmers.total_plot_area',
+            'final_farmers.leased_area',
+            'final_farmers.available_area',
+            'final_farmers.farmer_plot_uniqueid',
+            'final_farmers.plot_no',
+            'final_farmers.area_in_acers',
+            'final_farmers.area_in_hectares',
+            'final_farmers.own_area_in_acres',
+            'final_farmers.actual_owner_name',
+            'final_farmers.financial_year',
+            'final_farmers.season',
+            'final_farmers.created_at',
+            'final_farmers.updated_at',
+            'users.name as surveyor_name',
+            'final_farmers.plot_area',
+          ])
+          ->where('final_farmers.farmer_plot_uniqueid',$farmerplotuniqueid)
+          ->leftJoin('users', 'final_farmers.surveyor_id', '=', 'users.id')
+          ->where("final_farmers.onboard_completed", "!=", "Processing")
+          ->first();
+      $plot = polygon::where('farmer_plot_uniqueid',$farmerplotuniqueid)->where("final_status","!=","Rejected")->first();
+
+      $pipeSetting = null;
+      $plot_no = [];
+      if ($plot && isset($plot->plot_area)) {
+          $pipeSetting = PipeSetting::where('less_area', '<=', $plot->plot_area)
+              ->where('max_area', '>=', $plot->plot_area)
+              ->first();
+          if ($pipeSetting && isset($pipeSetting->no_of_pipe)) {
+              $plot_no = range(1, (int)$pipeSetting->no_of_pipe);
+          }
+      }
+      
+      $pipe_no_list = [];
+      $pending_plot_nos = [];
+      $all_plots_submitted = false;
+      if ($farmer && request()->has("financial_year") && request()->has("season") && $pipeSetting && isset($pipeSetting->no_of_pipe)) {
+        $pipeImgQuery = DB::table('Pipe')
+            ->select('pipe_count', 'plot_no')
+            ->where('farmerPlotUniqueid', $farmer->farmer_plot_uniqueid)
+            ->where('select_year', $request->financial_year)
+            ->where('select_season', $request->season);
+
+        $pipeImgRows = $pipeImgQuery->get();
+        if ($pipeImgRows && $pipeImgRows->count() > 0) {
+          $pipe_no_list = $pipeImgRows->pluck('pipe_count')->filter()->unique()->values()->map(function ($v) { return (int) $v; })->all();
+          $submitted_plot_nos = $pipeImgRows->pluck('pipe_count')->filter()->unique()->values()->map(function ($v) { return (int) $v; })->all();
+
+          $expected_plot_nos = range(1, (int)$pipeSetting->no_of_pipe);
+          // Align pending calculation with what we expose in submitted_pipe_nos (pipe_no)
+          $pending_plot_nos = array_values(array_diff($expected_plot_nos, $pipe_no_list));
+          $all_plots_submitted = (count($pending_plot_nos) === 0);
+        } else {
+          // No rows found: all expected are pending
+          $pipe_no_list = [];
+          $pending_plot_nos = $pipeSetting && isset($pipeSetting->no_of_pipe) ? range(1, (int)$pipeSetting->no_of_pipe) : [];
+          $all_plots_submitted = false;
+        }
+      }
+      // dd($farmer,$plot);
+      if ($farmer && $plot) {
+        return response()->json([
+          'success' => true,
+          'message' => 'Farmer details found',
+          'data' => [
+            'farmer' => $farmer,
+            'total_pipe_no' => $plot_no,
+            'submitted_pipe_nos' => $pipe_no_list,
+            'pending_pipe_nos' => $pending_plot_nos,
+            'status_message' => $all_plots_submitted ? 'All plots submitted' : null
+          ]
+        ], 200);
+      } else {
+        return response()->json(['success' => false, 'message' => 'Farmer or Plot details not found'], 200);
+      }
+    } catch (Exception $e) {
+      return response()->json(['error' => true, 'message' => 'Something went wrong'], 500);
+    }
+
+  }
+
 }

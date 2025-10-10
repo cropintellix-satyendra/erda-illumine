@@ -300,7 +300,18 @@ public function awd_pending_lists()
 	  //Plot list
         // if(request()->ajax()){
         $farmer_uniqueId = request('farmer_uniqueId')??'';
-            $plots_paginate = Aeration::with('farmerapproved')->where('status','Approved')->where('l2_status','Pending')->whereHas('farmerapproved',function($q){
+        
+        
+        $query = Aeration::with('farmerapproved')->where('status','Approved')->where('l2_status','Pending');
+        
+        // Add farmer_uniqueId filter at the main query level for better performance
+        if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
+            $query->whereHas('farmerapproved', function($q) {
+                $q->where('farmer_uniqueId', 'like', '%'.request('farmer_uniqueId').'%');
+            });
+        }
+        
+        $plots_paginate = $query->whereHas('farmerapproved',function($q){
                 if(auth()->user()->hasRole('L-2-Validator')){
                     $VendorLocation = DB::table('vendor_locations')->where('user_id',auth()->user()->id)->first();
                     $q->whereIn('state_id',explode(',',$VendorLocation->state));
@@ -325,42 +336,41 @@ public function awd_pending_lists()
                                     ".$l1_taluka_id."
                                 )";
                 }
-            if(request()->has('state') && !empty(request('state'))){
-                $q->where('state_id','like',request('state'));
-            }
-            if(request()->has('district') && !empty(request('district'))){
-                $q->where('district_id','like',request('district'));
-            }
-            if(request()->has('taluka') && !empty(request('taluka'))){
-                $q->where('taluka_id','like',request('taluka'));
-            }
-            if(request()->has('panchayats') && !empty(request('panchayats'))){
-                $q->where('panchayat_id','like',request('panchayats'));
-            }
-            if(request()->has('village') && !empty(request('village'))){
-                $q->where('village_id','like',request('village'));
-            }
-            if(request()->has('farmer_status') && !empty(request('farmer_status'))){
-                $q->where('final_status_onboarding','like',request('farmer_status'));
-            }
-            if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
-                $q->where('farmer_uniqueId',request('farmer_uniqueId'));
-            }
-            return $q;
+                if(request()->has('state') && !empty(request('state')) && request('state') !== '+'){
+                    $q->where('state_id','like',request('state'));
+                }
+                if(request()->has('district') && !empty(request('district')) && request('district') !== '+'){
+                    $q->where('district_id', request('district'));
+                }
+                if(request()->has('taluka') && !empty(request('taluka')) && request('taluka') !== '+'){
+                    $q->where('taluka_id','like',request('taluka'));
+                }
+                if(request()->has('panchayats') && !empty(request('panchayats')) && request('panchayats') !== '+'){
+                    $q->where('panchayat_id','like',request('panchayats'));
+                }
+                if(request()->has('village') && !empty(request('village')) && request('village') !== '+'){
+                    $q->where('village_id','like',request('village'));
+                }
+                if(request()->has('farmer_status') && !empty(request('farmer_status'))){
+                    $q->where('final_status_onboarding','like',request('farmer_status'));
+                }
+                // farmer_uniqueId filter moved to main query level for better performance
+                return $q;
             })
             ->when('filter',function($w){
-                if(request()->has('executive_onboarding') && !empty(request('executive_onboarding'))){
+                if(request()->has('executive_onboarding') && !empty(request('executive_onboarding')) && request('executive_onboarding') !== '+'){
                     $w->where('surveyor_id',request('executive_onboarding'));
                 }
-                if(request()->has('start_date') && !empty(request('start_date'))){
-                    $w->whereDate('created_at','>=',request('start_date'));
+                if(request()->has('start') && !empty(request('start')) && request('start') !== '+'){
+                    $w->whereDate('created_at','>=',request('start'));
                 }
-                if(request()->has('end_date') && !empty(request('end_date'))){
-                    $w->whereDate('created_at','<=',request('end_date'));
+                if(request()->has('end') && !empty(request('end')) && request('end') !== '+'){
+                    $w->whereDate('created_at','<=',request('end'));
                 }
                 return $w;
             })
             ->orderBy('id','desc')->paginate(25);
+             
             $path = $plots_paginate->links()->elements;
                         $links=[];
                         foreach ($path as $key=>$item) {
@@ -606,6 +616,9 @@ public function awd_pending_lists()
    */
   public function awd_reject_lists()
   {
+    if(isset(request()->test)){
+        dd('test');
+    }
     // dd('cbhd');
      //level 1 validator get pending plot list of pipe function
 	  //Plot list

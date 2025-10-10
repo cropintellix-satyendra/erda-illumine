@@ -90,6 +90,7 @@ class L2AerationValidationController extends Controller
     //level 1 validator get pending plot list of pipe function
 	  //Plot list
         // if(request()->ajax()){          
+        $farmer_uniqueId = request("farmer_uniqueId")??"";
             if(auth()->user()->hasRole('Viewer')){
                 //this condition is used when l1 user is login, to from vendor location table 
                 $VendorLocation = DB::table('viewer_locations')->where('user_id',auth()->user()->id)->first();
@@ -126,7 +127,12 @@ class L2AerationValidationController extends Controller
             }
             if(request()->has('village') && !empty(request('village'))){
                  $village_query = "AND (final_farmers.village_id = ".request('village').")";
-            }    
+            } 
+            
+            if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
+                 $village_query = "AND (aerations.farmer_uniqueId = ".request('farmer_uniqueId').")";
+            }  
+             
 
             $start_date=$surveyor_id=$end_date=$season="";
             //below query will be applicable when filter from above the table is used.
@@ -224,7 +230,7 @@ class L2AerationValidationController extends Controller
   	  $seasons = DB::table('seasons')->get();
       $status = request()->status;
       $others = "0";
-  	  return view('admin.l2validator.aeration.pending-plot',compact('links','pagination','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
+  	  return view('admin.l2validator.aeration.pending-plot',compact('farmer_uniqueId','links','pagination','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
   }
 
 
@@ -441,6 +447,8 @@ class L2AerationValidationController extends Controller
      //level 1 validator get pending plot list of pipe function
 	  //Plot list
 	//   if(request()->ajax()){
+        $farmer_uniqueId = request("farmer_uniqueId")??"";
+
         if(auth()->user()->hasRole('Viewer')){
             //this condition is used when l1 user is login, to from vendor location table 
             $VendorLocation = DB::table('viewer_locations')->where('user_id',auth()->user()->id)->first();
@@ -494,6 +502,9 @@ class L2AerationValidationController extends Controller
                 $season = "AND (aerations.season = '".request('seasons')."' )";
             }
 
+            if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
+                 $village_query = "AND (aerations.farmer_uniqueId = ".request('farmer_uniqueId').")";
+            }  
         $aeration_sql = "SELECT 
                             aerations.*, 
                             final_farmers.farmer_name AS farmer_name,
@@ -576,7 +587,7 @@ class L2AerationValidationController extends Controller
         $seasons = DB::table('seasons')->get();
         $status = request()->status;
         $others = "0";
-      return view('admin.l2validator.aeration.reject-plot',compact('links','pagination','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
+      return view('admin.l2validator.aeration.reject-plot',compact('farmer_uniqueId','links','pagination','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
   }
 
   public function awd_reject_detail($rolename, $plotuniqueid, $aeration_no,$pipe_no){
@@ -685,6 +696,9 @@ class L2AerationValidationController extends Controller
         // })
         // ->orderBy('id','desc');
   		// return datatables()->of($plots)->make(true);
+        $farmer_uniqueId = request("farmer_uniqueId")??"";
+
+
          $state_query=$district_query=$taluka_query=$panchayats_q=$village_query="";
             //below query will be applicable when filter from above the table is used.
             if(request()->has('state') && !empty(request('state'))){
@@ -717,6 +731,10 @@ class L2AerationValidationController extends Controller
             if(request()->has('seasons') && !empty(request('seasons'))){
                 $season = "AND (aerations.season = '".request('seasons')."' )";
             }
+            
+            if(request()->has('farmer_uniqueId') && !empty(request('farmer_uniqueId'))){
+                 $village_query = "AND (aerations.farmer_uniqueId = ".request('farmer_uniqueId').")";
+            }  
         $aeration_sql = "SELECT 
                             aerations.*, 
                             final_farmers.farmer_name AS farmer_name,
@@ -796,7 +814,7 @@ class L2AerationValidationController extends Controller
   	  $seasons = DB::table('seasons')->get();
       $status = request()->status;
       $others = "0";
-  	  return view('admin.l2validator.aeration.approved-plot',compact('links','pagination','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
+  	  return view('admin.l2validator.aeration.approved-plot',compact('farmer_uniqueId','links','pagination','page_title','page_description','action','seasons','states', 'districts','talukas','panchayats','villages','onboarding_executive','status','others'));
   }
 
   public function awd_approved_detail($rolename,$plotuniqueid,$aeration_no,$pipe_no){

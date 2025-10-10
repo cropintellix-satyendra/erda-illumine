@@ -26,6 +26,18 @@ class PolygonController extends Controller
     
 
     public function check_polygon_nearby(Request $request){
+
+        // if(!request()->has('farmer_plot_uniqueid')){
+        //     return response()->json(['error'=>true,'data'=>'Farmer Plot Unique ID is required'],422);
+        // }
+
+        if(!request()->has('lat')){
+            return response()->json(['error'=>true,'data'=>'Latitude is required'],422);
+        }
+
+        if(!request()->has('lng')){
+            return response()->json(['error'=>true,'data'=>'Longitude is required'],422);
+        }
    
         $plot = DB::table('final_farmers')->where('farmer_plot_uniqueid', $request->farmer_plot_uniqueid)->first();
        

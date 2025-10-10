@@ -31,6 +31,8 @@ Route::get('/terms-and-condition', [TermsandconditionController::class, 'web_tnc
 Route::get('/privacy/policy', [TermsandconditionController::class, 'web_privacy_policy']);
 Route::get('/privacy/webpolicy', [TermsandconditionController::class, 'web_privacy_policy']);
 Route::get('/privacy-policy', [TermsandconditionController::class, 'web_privacy_policy_terms']);
+
+Route::get('genrate/geojson',[\App\Http\Controllers\Api\V1\TestController2::class,'genrate_geojson']);
 Route::get('/req_delete_account',function(){
     return view('req_deleted_account');
 });

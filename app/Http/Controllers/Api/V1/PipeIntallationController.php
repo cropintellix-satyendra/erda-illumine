@@ -1408,4 +1408,13 @@ public function incrementPipeSettings(Request $request)
     {
         return $this->getImagesArray($jsonString);
     }
+
+    public function submit_pipe_data(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'farmer_uniqueId' => 'required',
+            'farmer_plot_uniqueid' => 'required',
+            'plot_no' => 'required',
+        ]);
+    }
 }

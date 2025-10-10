@@ -4,28 +4,43 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Polygon extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'farmer_id',
         'farmer_uniqueId',
-        "farmer_plot_uniqueid",
-        "plot_no",
-        "latitude",
-        "longitude",
-        "area_units",
-        "plot_area",
-        "surveyor_id",
-        "ranges",
-       "polygon_date_time",
-        'status',
+        'farmer_plot_uniqueid',
+        'plot_no',
+        'latitude',
+        'longitude',
+        'area_units',
+        'plot_area',
+        'surveyor_id',
+        'ranges',
+        'polygon_date_time',
+        'final_status',
+        'delete_polygon',
         'financial_year',
         'season',
-        'final_status'
-      ];
+        'ranges_backup'
+    ];
+
+    protected $casts = [
+        'farmer_id' => 'integer',
+        'farmer_uniqueId' => 'integer',
+        'surveyor_id' => 'integer',
+        'latitude' => 'string',
+        'longitude' => 'string',
+        'plot_area' => 'string',
+        'delete_polygon' => 'string',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime',
+        'deleted_at' => 'datetime'
+    ];
 
     //   public function reject_validation_detaill2()
     //   {

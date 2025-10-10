@@ -57,6 +57,628 @@ use Illuminate\Support\Facades\Storage as FacadesStorage;
 class TestController2 extends Controller
 {
 
+
+    public function genrate_geojson(Request $request){
+        try {
+            $polygons = Polygon::select('id', 'ranges')->get();
+        
+        $analysis = [
+            'total_polygons' => $polygons->count(),
+            'valid_polygons' => 0,
+            'invalid_polygons' => 0,
+            'empty_ranges' => 0,
+            'invalid_coordinates' => 0,
+            'swapped_coordinates' => 0,
+            'invalid_format' => 0,
+            'coordinate_format_issues' => 0,
+            'bounds_issues' => 0,
+            'polygon_details' => [],
+            'coordinate_analysis' => [],
+            'sample_data' => []
+        ];
+        
+        $sampleCount = 0;
+        $maxSampleSize = 10; // Show only first 10 samples for detailed analysis
+        
+        foreach ($polygons as $polygon) {
+            $rawRanges = $polygon->ranges;
+            $decodedRanges = $this->decodeRanges($rawRanges);
+            $validation = $this->validateRanges($decodedRanges);
+            
+            // Detailed coordinate analysis
+            $coordinateAnalysis = [
+                'polygon_id' => $polygon->id,
+                'raw_ranges_type' => gettype($rawRanges),
+                'raw_ranges_length' => is_string($rawRanges) ? strlen($rawRanges) : 'N/A',
+                'decoded_type' => gettype($decodedRanges),
+                'decoded_count' => is_array($decodedRanges) ? count($decodedRanges) : 0,
+                'coordinate_format' => 'unknown',
+                'bounds' => null,
+                'issues' => [],
+                'sample_coordinates' => []
+            ];
+            
+            if (is_array($decodedRanges) && !empty($decodedRanges)) {
+                // Check coordinate format
+                $firstCoord = $decodedRanges[0];
+                if (is_array($firstCoord)) {
+                    if (count($firstCoord) >= 2) {
+                        $coordinateAnalysis['coordinate_format'] = 'array_format';
+                        $coordinateAnalysis['sample_coordinates'] = array_slice($decodedRanges, 0, 3); // First 3 coordinates
+                        
+                        // Check bounds - safely extract coordinates
+                        $lats = [];
+                        $lngs = [];
+                        
+                        foreach ($decodedRanges as $coord) {
+                            if (is_array($coord) && count($coord) >= 2) {
+                                $lngs[] = floatval($coord[0]);
+                                $lats[] = floatval($coord[1]);
+                            }
+                        }
+                        
+                        if (!empty($lats) && !empty($lngs)) {
+                            $coordinateAnalysis['bounds'] = [
+                                'min_lat' => min($lats),
+                                'max_lat' => max($lats),
+                                'min_lng' => min($lngs),
+                                'max_lng' => max($lngs),
+                                'lat_range' => max($lats) - min($lats),
+                                'lng_range' => max($lngs) - min($lngs)
+                            ];
+                            
+                            // Check India bounds
+                            if (min($lats) < 6 || max($lats) > 37) {
+                                $coordinateAnalysis['issues'][] = 'Latitude out of India bounds (6-37)';
+                                $analysis['bounds_issues']++;
+                            }
+                            if (min($lngs) < 68 || max($lngs) > 97) {
+                                $coordinateAnalysis['issues'][] = 'Longitude out of India bounds (68-97)';
+                                $analysis['bounds_issues']++;
+                            }
+                            
+                            // Check for potential coordinate swap
+                            if (min($lats) > 68 && max($lats) < 97 && min($lngs) > 6 && max($lngs) < 37) {
+                                $coordinateAnalysis['issues'][] = 'Potential coordinate swap detected';
+                                $analysis['coordinate_format_issues']++;
+                            }
+                        } else {
+                            $coordinateAnalysis['issues'][] = 'No valid coordinates found for bounds calculation';
+                            $coordinateAnalysis['bounds'] = null;
+                        }
+                        
+                    } else {
+                        $coordinateAnalysis['issues'][] = 'Insufficient coordinate points';
+                        $analysis['coordinate_format_issues']++;
+                    }
+                } else {
+                    $coordinateAnalysis['issues'][] = 'Invalid coordinate structure';
+                    $analysis['coordinate_format_issues']++;
+                }
+            } else {
+                $coordinateAnalysis['issues'][] = 'Empty or invalid ranges';
+            }
+            
+            $polygonDetail = [
+                'polygon_id' => $polygon->id,
+                'is_valid' => $validation['valid'],
+                'reason' => $validation['reason'],
+                'ranges_count' => is_array($decodedRanges) ? count($decodedRanges) : 0,
+                'coordinate_analysis' => $coordinateAnalysis
+            ];
+            
+            if ($validation['valid']) {
+                $analysis['valid_polygons']++;
+            } else {
+                $analysis['invalid_polygons']++;
+                
+                // Categorize invalid polygons
+                switch ($validation['reason']) {
+                    case 'Ranges is empty or not an array':
+                        $analysis['empty_ranges']++;
+                        break;
+                    case 'lat/lng values are swapped - lat should be 6-37, lng should be 68-97 for India':
+                        $analysis['swapped_coordinates']++;
+                        break;
+                    case 'lat/lng values must be numeric':
+                    case 'Coordinate point is not an array':
+                    case 'Missing lat/lng keys in coordinate point':
+                        $analysis['invalid_coordinates']++;
+                        break;
+                    default:
+                        $analysis['invalid_format']++;
+                        break;
+                }
+            }
+            
+            $analysis['polygon_details'][] = $polygonDetail;
+            
+            // Add sample data for first few polygons
+            if ($sampleCount < $maxSampleSize) {
+                $analysis['sample_data'][] = [
+                    'polygon_id' => $polygon->id,
+                    'raw_ranges' => $rawRanges,
+                    'decoded_ranges' => $decodedRanges,
+                    'validation' => $validation,
+                    'coordinate_analysis' => $coordinateAnalysis
+                ];
+                $sampleCount++;
+            }
+        }
+        
+        // Calculate additional statistics
+        $analysis['statistics'] = [
+            'total_polygons' => $analysis['total_polygons'],
+            'valid_percentage' => $analysis['total_polygons'] > 0 ? 
+                round(($analysis['valid_polygons'] / $analysis['total_polygons']) * 100, 2) : 0,
+            'invalid_percentage' => $analysis['total_polygons'] > 0 ? 
+                round(($analysis['invalid_polygons'] / $analysis['total_polygons']) * 100, 2) : 0,
+            'empty_ranges_percentage' => $analysis['total_polygons'] > 0 ? 
+                round(($analysis['empty_ranges'] / $analysis['total_polygons']) * 100, 2) : 0,
+            'swapped_coordinates_percentage' => $analysis['total_polygons'] > 0 ? 
+                round(($analysis['swapped_coordinates'] / $analysis['total_polygons']) * 100, 2) : 0,
+            'bounds_issues_percentage' => $analysis['total_polygons'] > 0 ? 
+                round(($analysis['bounds_issues'] / $analysis['total_polygons']) * 100, 2) : 0,
+        ];
+        
+        // Recommendations
+        $analysis['recommendations'] = [];
+        if ($analysis['swapped_coordinates'] > 0) {
+            $analysis['recommendations'][] = 'Consider running coordinate swap fix for ' . $analysis['swapped_coordinates'] . ' polygons';
+        }
+        if ($analysis['bounds_issues'] > 0) {
+            $analysis['recommendations'][] = 'Check coordinate bounds for ' . $analysis['bounds_issues'] . ' polygons - they may be outside India';
+        }
+        if ($analysis['empty_ranges'] > 0) {
+            $analysis['recommendations'][] = 'Review and fix ' . $analysis['empty_ranges'] . ' polygons with empty ranges';
+        }
+        if ($analysis['coordinate_format_issues'] > 0) {
+            $analysis['recommendations'][] = 'Investigate coordinate format issues in ' . $analysis['coordinate_format_issues'] . ' polygons';
+        }
+        
+        return response()->json([
+            'success' => true,
+            'analysis' => $analysis,
+            'summary' => $analysis['statistics'],
+            'recommendations' => $analysis['recommendations'],
+            'debug_info' => [
+                'sample_data_count' => count($analysis['sample_data']),
+                'total_analysis_time' => microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'],
+                'memory_usage' => memory_get_usage(true) / 1024 / 1024 . ' MB'
+            ]
+        ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error analyzing polygons: ' . $e->getMessage(),
+                'error_details' => [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
+                ]
+            ], 500);
+        }
+    }
+
+    // Detailed analysis for specific polygon
+    public function analyze_specific_polygon(Request $request)
+    {
+        $polygonId = $request->input('polygon_id');
+        
+        if (!$polygonId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Polygon ID is required'
+            ], 400);
+        }
+        
+        $polygon = Polygon::select('id', 'ranges')->where('id', $polygonId)->first();
+        
+        if (!$polygon) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Polygon not found'
+            ], 404);
+        }
+        
+        $rawRanges = $polygon->ranges;
+        $decodedRanges = $this->decodeRanges($rawRanges);
+        $validation = $this->validateRanges($decodedRanges);
+        
+        // Detailed analysis
+        $analysis = [
+            'polygon_id' => $polygon->id,
+            'raw_data' => [
+                'raw_ranges' => $rawRanges,
+                'raw_type' => gettype($rawRanges),
+                'raw_length' => is_string($rawRanges) ? strlen($rawRanges) : 'N/A',
+                'is_json_valid' => json_last_error() === JSON_ERROR_NONE
+            ],
+            'decoded_data' => [
+                'decoded_ranges' => $decodedRanges,
+                'decoded_type' => gettype($decodedRanges),
+                'decoded_count' => is_array($decodedRanges) ? count($decodedRanges) : 0,
+                'is_array' => is_array($decodedRanges),
+                'is_empty' => empty($decodedRanges)
+            ],
+            'validation' => $validation,
+            'coordinate_analysis' => [],
+            'geojson_preview' => null,
+            'issues' => [],
+            'recommendations' => []
+        ];
+        
+        if (is_array($decodedRanges) && !empty($decodedRanges)) {
+            // Analyze each coordinate
+            $coordinates = [];
+            $lats = [];
+            $lngs = [];
+            
+            foreach ($decodedRanges as $index => $point) {
+                if (is_array($point) && count($point) >= 2) {
+                    $lng = floatval($point[0]);
+                    $lat = floatval($point[1]);
+                    
+                    $coordinates[] = [
+                        'index' => $index,
+                        'lng' => $lng,
+                        'lat' => $lat,
+                        'is_valid_lng' => ($lng >= 68 && $lng <= 97),
+                        'is_valid_lat' => ($lat >= 6 && $lat <= 37),
+                        'is_swapped' => ($lng >= 6 && $lng <= 37 && $lat >= 68 && $lat <= 97)
+                    ];
+                    
+                    $lats[] = $lat;
+                    $lngs[] = $lng;
+                }
+            }
+            
+            $bounds = null;
+            if (!empty($lats) && !empty($lngs)) {
+                $bounds = [
+                    'min_lat' => min($lats),
+                    'max_lat' => max($lats),
+                    'min_lng' => min($lngs),
+                    'max_lng' => max($lngs),
+                    'lat_range' => max($lats) - min($lats),
+                    'lng_range' => max($lngs) - min($lngs)
+                ];
+            }
+            
+            $analysis['coordinate_analysis'] = [
+                'total_coordinates' => count($coordinates),
+                'coordinates' => $coordinates,
+                'bounds' => $bounds,
+                'statistics' => [
+                    'valid_lat_count' => count(array_filter($coordinates, function($c) { return $c['is_valid_lat']; })),
+                    'valid_lng_count' => count(array_filter($coordinates, function($c) { return $c['is_valid_lng']; })),
+                    'swapped_count' => count(array_filter($coordinates, function($c) { return $c['is_swapped']; }))
+                ]
+            ];
+            
+            // Generate GeoJSON preview
+            if (count($coordinates) >= 3) {
+                $analysis['geojson_preview'] = [
+                    'type' => 'Feature',
+                    'properties' => [
+                        'polygon_id' => $polygon->id,
+                        'coordinate_count' => count($coordinates)
+                    ],
+                    'geometry' => [
+                        'type' => 'Polygon',
+                        'coordinates' => [array_map(function($c) {
+                            return [$c['lng'], $c['lat']];
+                        }, $coordinates)]
+                    ]
+                ];
+            }
+            
+            // Identify issues
+            if (count($coordinates) < 3) {
+                $analysis['issues'][] = 'Insufficient coordinates for polygon (minimum 3 required)';
+            }
+            
+            $swappedCount = $analysis['coordinate_analysis']['statistics']['swapped_count'];
+            if ($swappedCount > 0) {
+                $analysis['issues'][] = "Potential coordinate swap detected in $swappedCount coordinates";
+                $analysis['recommendations'][] = 'Consider swapping lat/lng values';
+            }
+            
+            $validLatCount = $analysis['coordinate_analysis']['statistics']['valid_lat_count'];
+            $validLngCount = $analysis['coordinate_analysis']['statistics']['valid_lng_count'];
+            
+            if ($validLatCount < count($coordinates)) {
+                $analysis['issues'][] = 'Some latitude values are outside India bounds (6-37)';
+            }
+            
+            if ($validLngCount < count($coordinates)) {
+                $analysis['issues'][] = 'Some longitude values are outside India bounds (68-97)';
+            }
+            
+            if (empty($analysis['issues'])) {
+                $analysis['recommendations'][] = 'Polygon appears to be valid for map display';
+            }
+        } else {
+            $analysis['issues'][] = 'Empty or invalid coordinate data';
+            $analysis['recommendations'][] = 'Check polygon data source and format';
+        }
+        
+        return response()->json([
+            'success' => true,
+            'analysis' => $analysis
+        ]);
+    }
+
+    // Debug function to check polygon visibility issues
+    public function debug_polygon_visibility(Request $request)
+    {
+        $polygons = Polygon::select('id', 'ranges')->limit(5)->get();
+        
+        $debugData = [
+            'sample_polygons' => [],
+            'coordinate_analysis' => [],
+            'geojson_structure' => []
+        ];
+        
+        foreach ($polygons as $polygon) {
+            $rawRanges = $polygon->ranges;
+            $decodedRanges = $this->decodeRanges($rawRanges);
+            
+            // Check coordinate format
+            $coordinateAnalysis = [
+                'polygon_id' => $polygon->id,
+                'raw_ranges' => $rawRanges,
+                'decoded_ranges' => $decodedRanges,
+                'coordinate_format' => 'unknown',
+                'bounds' => null,
+                'issues' => []
+            ];
+            
+            if (is_array($decodedRanges) && !empty($decodedRanges)) {
+                // Check if coordinates are in [lng, lat] format (GeoJSON standard)
+                $firstCoord = $decodedRanges[0];
+                if (is_array($firstCoord) && count($firstCoord) >= 2) {
+                    $coordinateAnalysis['coordinate_format'] = 'array_format';
+                    
+                    // Check bounds
+                    $lats = array_column($decodedRanges, 1);
+                    $lngs = array_column($decodedRanges, 0);
+                    
+                    $coordinateAnalysis['bounds'] = [
+                        'min_lat' => min($lats),
+                        'max_lat' => max($lats),
+                        'min_lng' => min($lngs),
+                        'max_lng' => max($lngs)
+                    ];
+                    
+                    // Check if coordinates are within India bounds
+                    if (min($lats) < 6 || max($lats) > 37) {
+                        $coordinateAnalysis['issues'][] = 'Latitude out of India bounds (6-37)';
+                    }
+                    if (min($lngs) < 68 || max($lngs) > 97) {
+                        $coordinateAnalysis['issues'][] = 'Longitude out of India bounds (68-97)';
+                    }
+                } else {
+                    $coordinateAnalysis['issues'][] = 'Invalid coordinate structure';
+                }
+            } else {
+                $coordinateAnalysis['issues'][] = 'Empty or invalid ranges';
+            }
+            
+            $debugData['coordinate_analysis'][] = $coordinateAnalysis;
+            
+            // Generate GeoJSON structure for this polygon
+            if (is_array($decodedRanges) && !empty($decodedRanges)) {
+                $geojsonFeature = [
+                    'type' => 'Feature',
+                    'properties' => [
+                        'polygon_id' => $polygon->id
+                    ],
+                    'geometry' => [
+                        'type' => 'Polygon',
+                        'coordinates' => [$decodedRanges]
+                    ]
+                ];
+                
+                $debugData['geojson_structure'][] = $geojsonFeature;
+            }
+        }
+        
+        return response()->json($debugData);
+    }
+
+    // Generate proper GeoJSON for map display
+    public function generate_map_geojson(Request $request)
+    {
+        $polygons = Polygon::select('id', 'ranges')->get();
+        
+        $geojson = [
+            'type' => 'FeatureCollection',
+            'features' => []
+        ];
+        
+        $validPolygons = 0;
+        $invalidPolygons = 0;
+        
+        foreach ($polygons as $polygon) {
+            $rawRanges = $polygon->ranges;
+            $decodedRanges = $this->decodeRanges($rawRanges);
+            
+            if (is_array($decodedRanges) && !empty($decodedRanges)) {
+                // Convert to proper GeoJSON format
+                $coordinates = [];
+                
+                foreach ($decodedRanges as $point) {
+                    if (is_array($point) && count($point) >= 2) {
+                        // Ensure coordinates are in [lng, lat] format
+                        $coordinates[] = [
+                            floatval($point[0]), // longitude
+                            floatval($point[1])  // latitude
+                        ];
+                    }
+                }
+                
+                if (count($coordinates) >= 3) { // Minimum 3 points for polygon
+                    $feature = [
+                        'type' => 'Feature',
+                        'properties' => [
+                            'polygon_id' => $polygon->id,
+                            'point_count' => count($coordinates)
+                        ],
+                        'geometry' => [
+                            'type' => 'Polygon',
+                            'coordinates' => [$coordinates]
+                        ]
+                    ];
+                    
+                    $geojson['features'][] = $feature;
+                    $validPolygons++;
+                } else {
+                    $invalidPolygons++;
+                }
+            } else {
+                $invalidPolygons++;
+            }
+        }
+        
+        return response()->json([
+            'success' => true,
+            'geojson' => $geojson,
+            'statistics' => [
+                'total_polygons' => $polygons->count(),
+                'valid_polygons' => $validPolygons,
+                'invalid_polygons' => $invalidPolygons,
+                'features_count' => count($geojson['features'])
+            ]
+        ]);
+    }
+
+    public function genrate_geojson_update_polygon(Request $request){
+        $polygons = Polygon::select('id', 'ranges')->get();
+
+        $invalidPolygons = [];
+        $limit = (int) $request->input('limit', 100);
+        $limit = $limit > 0 ? min($limit, 1000) : 100;
+
+        foreach ($polygons as $polygon) {
+            $rawRanges = $polygon->ranges;
+            $decodedRanges = $this->decodeRanges($rawRanges);
+            $validation = $this->validateRanges($decodedRanges);
+
+            if (!$validation['valid']) {
+                $rangesToUpdate = [];
+                $actualRanges = json_decode($rawRanges);
+                foreach($actualRanges as $range){
+                    $rangesToUpdate[] = [
+                        'lat' => $range->lng,
+                        'lng' => $range->lat,
+                    ];
+                }
+                $polygon->ranges = json_encode($rangesToUpdate,true);
+                $polygon->new_backup_data = $rawRanges;
+                $polygon->save();
+                // dd($polygon);
+                $invalidPolygons[] = [
+                    'polygon_id' => $polygon->id,
+                    'raw_ranges' => $rawRanges,
+                    'parsed_ranges' => $decodedRanges,
+                    'reason' => $validation['reason'],
+                ];
+
+                if (count($invalidPolygons) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'total_polygons' => $polygons->count(),
+            'invalid_count' => count($invalidPolygons),
+            'invalid_polygons' => $invalidPolygons,
+        ]);
+    }
+
+    private function decodeRanges($rawRanges)
+    {
+        if (is_null($rawRanges) || $rawRanges === '') {
+            return null;
+        }
+
+        if (is_array($rawRanges)) {
+            return $rawRanges;
+        }
+
+        if (is_string($rawRanges)) {
+            $trimmed = trim($rawRanges);
+
+            if ($trimmed === '') {
+                return null;
+            }
+
+            $decoded = json_decode($trimmed, true);
+
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $decoded;
+            }
+        }
+
+        return $rawRanges;
+    }
+
+    private function validateRanges($ranges)
+    {
+        if (!is_array($ranges) || empty($ranges)) {
+            return [
+                'valid' => false,
+                'reason' => 'Ranges is empty or not an array',
+            ];
+        }
+
+        foreach ($ranges as $point) {
+            if (!is_array($point)) {
+                return [
+                    'valid' => false,
+                    'reason' => 'Coordinate point is not an array',
+                ];
+            }
+
+            $hasLatLngKeys = array_key_exists('lat', $point) && array_key_exists('lng', $point);
+
+            if ($hasLatLngKeys) {
+                if (!is_numeric($point['lat']) || !is_numeric($point['lng'])) {
+                    return [
+                        'valid' => false,
+                        'reason' => 'lat/lng values must be numeric',
+                    ];
+                }
+
+                // Check if lat/lng values are swapped (lat > 50 means it's actually longitude)
+                $lat = (float) $point['lat'];
+                $lng = (float) $point['lng'];
+                
+                if ($lat > 50 || $lng < 50) {
+                    return [
+                        'valid' => false,
+                        'reason' => 'lat/lng values are swapped - lat should be 6-37, lng should be 68-97 for India',
+                    ];
+                }
+
+                continue;
+            }
+
+            return [
+                'valid' => false,
+                'reason' => 'Missing lat/lng keys in coordinate point',
+            ];
+        }
+
+        return [
+            'valid' => true,
+            'reason' => null,
+        ];
+    }
+
     public function geojson(Request $request){
 
         // dd($request->all());
@@ -98,262 +720,2549 @@ class TestController2 extends Controller
        
         // return response()->json(collect($data)->take(5));
     }
- 
- 
-
-
-
-public function genrate_geojson_data_kml(Request $request)
-{
-    try {
-        // Set comprehensive timeout and memory settings
-        set_time_limit(0); // 0 = no time limit
-        ini_set('memory_limit', '72000M');
-        ini_set('max_execution_time', 0);
-        ini_set('max_input_time', -1);
-        
-        // Additional timeout settings
-        if (function_exists('ignore_user_abort')) {
-            ignore_user_abort(true);
-        }
-        
-        // Set HTTP timeout headers
-        if (!headers_sent()) {
-            header('X-Accel-Buffering: no'); // Disable nginx buffering
-        }
-
-        // Check if a KML file was uploaded
-        if (!$request->hasFile('kml_file')) {
-            return response()->json(['message' => 'No KML file uploaded. Please upload a KML file with key "kml_file"'], 400);
-        }
-
-        $file = $request->file('kml_file');
-        
-        // Validate file type
-        if ($file->getClientOriginalExtension() !== 'kml') {
-            return response()->json(['message' => 'Invalid file type. Please upload a KML file'], 400);
-        }
-
-        // Load and parse the KML file
-        $kml = simplexml_load_file($file->getPathname());
-        
-        if ($kml === false) {
-            return response()->json(['message' => 'Failed to parse KML file'], 400);
-        }
-
-        // Register the KML namespace
-        $kml->registerXPathNamespace('kml', 'http://www.opengis.net/kml/2.2');
-        
-        // Find all Placemark elements
-        $placemarks = $kml->xpath('//kml:Placemark');
-        
-        $processedData = [];
-        $count = 0;
-        
-        foreach ($placemarks as $placemark) {
+    
+    public function genrate_geojson_cccddss_ss(Request $request){
+        try {
             
-            // Extract basic information
-            $name = (string) $placemark->name;
-           
-            // Extract ExtendedData
-            $extendedData = [];
-            if (isset($placemark->ExtendedData->SchemaData->SimpleData)) {
-                foreach ($placemark->ExtendedData->SchemaData->SimpleData as $simpleData) {
-                    $extendedData[(string) $simpleData['name']] = (string) $simpleData;
-                }
+            set_time_limit(0);
+            ini_set('memory_limit', '72000M');
+            ini_set('max_execution_time', 0);
+            ini_set('max_input_time', -1);
+            
+            if (function_exists('ignore_user_abort')) {
+                ignore_user_abort(true);
             }
             
-            // Extract coordinates and convert to [[lat, lng], [lat, lng]] format
-            $coordinates = [];
-            if (isset($placemark->MultiGeometry->Polygon->outerBoundaryIs->LinearRing->coordinates)) {
-                $coordsString = (string) $placemark->MultiGeometry->Polygon->outerBoundaryIs->LinearRing->coordinates;
+            if (!headers_sent()) {
+                header('X-Accel-Buffering: no'); // Disable nginx buffering
+            }
+
+            // Load existing GeoJSON file instead of processing KML
+            $filename = 'geojson_data_2025-09-30_10-56-59.json';
+            $geojsonPath = storage_path('app/public/geojson/' . $filename);
+            $processedDataPath = storage_path('app/public/geojson/processed_data_2025-09-30_10-56-59.json');
+
+            if (!file_exists($geojsonPath)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'GeoJSON file not found: ' . $filename,
+                    'file_path' => $geojsonPath
+                ], 404);
+            }
+
+            // Load GeoJSON data
+            $geojsonContent = file_get_contents($geojsonPath);
+            $geojsonData = json_decode($geojsonContent, true);
+
+            if (!$geojsonData) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid GeoJSON file format'
+                ], 422);
+            }
+
+            // Load processed data if available
+            $processedData = [];
+            if (file_exists($processedDataPath)) {
+                $processedContent = file_get_contents($processedDataPath);
+                $processedData = json_decode($processedContent, true);
+            }
+
+            // Extract unique farmers from GeoJSON
+            $uniqueFarmers = [];
+            foreach ($geojsonData['features'] as $feature) {
+                $properties = $feature['properties'];
+                $clientId = $properties['client_id'] ?? null;
+                $farmerName = $properties['farmer_name'] ?? null;
                 
-                // Split coordinates by spaces and process each coordinate pair
-                $coordPairs = explode(' ', trim($coordsString));
+                if ($clientId) {
+                    $uniqueFarmers[$clientId] = $farmerName;
+                }
+            }
+
+            // Check existing polygons based on coordinates and process data
+            $existingPolygonsCount = 0;
+            $newPolygonsCount = 0;
+            $polygonDetails = [];
+            $processedResults = [];
+            DB::beginTransaction();
+            foreach ($geojsonData['features'] as $index => $feature) {
+                $coordinates = $feature['geometry']['coordinates'][0] ?? [];
+                $properties = $feature['properties'];
                 
-                foreach ($coordPairs as $coordPair) {
-                    if (!empty(trim($coordPair))) {
-                        $parts = explode(',', trim($coordPair));
-                        if (count($parts) >= 2) {
-                            $lng = floatval($parts[0]); // Longitude (X)
-                            $lat = floatval($parts[1]); // Latitude (Y)
-                            $coordinates[] = ["lat"=>$lat, "lng"=>$lng]; // Format: [lat, lng]
+                if (!empty($coordinates)) {
+                    // Get first coordinate for comparison
+                    $firstCoord = $coordinates[0];
+                    $lng = $firstCoord[0];
+                    $lat = $firstCoord[1];
+                    
+                    // Check if polygon exists with similar coordinates (within small range)
+                    $existingPolygon = DB::table('polygons')
+                        ->whereRaw("JSON_EXTRACT(ranges, '$[0].lat') BETWEEN ? AND ?", [$lat - 0.0001, $lat + 0.0001])
+                        ->whereRaw("JSON_EXTRACT(ranges, '$[0].lng') BETWEEN ? AND ?", [$lng - 0.0001, $lng + 0.0001])
+                        ->first();
+                    
+                    $clientId = $properties['client_id'] ?? null;
+                    $farmerName = $properties['farmer_name'] ?? null;
+                    $plotArea = $properties['plot_area'] ?? 0;
+                    $plotArea = round($plotArea, 2);
+                    $totalAreaInAcres = $properties['total_area_inacres'] ?? 0;
+                    $totalAreaInAcres = round($totalAreaInAcres, 2);
+                    $surveyorName = $properties['surveyor_name'] ?? null;
+                    
+                    if ($existingPolygon) {
+                        // Update existing data
+                        $existingPolygonsCount++;
+                        
+                        // Update final_farmers table
+                        DB::table('final_farmers')
+                            ->where('id', $existingPolygon->farmer_id)
+                            ->update([
+                                'farmer_name' => $farmerName,
+                                'plot_area' => $plotArea,
+                                'area_in_acers' => $totalAreaInAcres,
+                                'surveyor_name' => $surveyorName,
+                                'updated_at' => now()
+                            ]);
+                        
+                        // Update 	farmer_plot_detail table
+                        DB::table('farmer_plot_detail')
+                            ->where('farmer_id', $existingPolygon->farmer_id)
+                            ->update([
+                                'area_in_acers' => $totalAreaInAcres,
+                                'updated_at' => now()
+                            ]);
+                        
+                        // Update polygons table
+                        DB::table('polygons')
+                            ->where('id', $existingPolygon->id)
+                            ->update([
+                                'ranges' => json_encode($coordinates),
+                                'latitude' => $lat,
+                                'longitude' => $lng,
+                                'plot_area' => $plotArea,
+                                'updated_at' => now()
+                            ]);
+                        
+                        $status = 'updated';
+                        $action = 'Updated existing records';
+                        
+                    } else {
+                        // Create new data
+                        $newPolygonsCount++;
+                        
+                        // Get farmer count for plot number
+                        $farmerCount = DB::table('final_farmers')->count();
+                        $plotNo = $farmerCount > 0 ? $farmerCount + 1 : 1;
+                        $surveyorId = User::where('name',$surveyorName)->first()->id;
+                        // Create final_farmers record
+                        $farmerId = Finalfarmer::where('farmer_uniqueId',$clientId)->first();
+                        if(!$farmerId){
+                            $farmerId = Finalfarmer();
+                            $farmerId->surveyor_id = $surveyorId;
+                            $farmerId->surveyor_name = $surveyorName;
+                            $farmerId->surveyor_email = $surveyorEmail;
+                            $farmerId->surveyor_mobile = $surveyorMobile;
+                            $farmerId->farmer_uniqueId = $clientId;
+                            $farmerId->farmer_plot_uniqueid = $clientId.'P'.$plotNo;
+                            $farmerId->farmer_name = $farmerName;
+                            $farmerId->plot_area = $plotArea;
+                            $farmerId->plot_no = $plotNo;
+                            $farmerId->area_in_acers = $totalAreaInAcres;
+                            $farmerId->surveyor_name = $surveyorName;
+                            $farmerId->latitude = $lat;
+                            $farmerId->longitude = $lng;
+
+                            $farmerId->status_onboarding = 'Approved';
+                            $farmerId->final_status_onboarding = 'Approved';
+                            $farmerId->onboarding_form = 1;
+                            $farmerId->final_status = 'Approved';
+                            $farmerId->mobile_access = 'Own Number';
+                            $farmerId->mobile_reln_owner = 'NA';
+                            $farmerId->country_id = '91';
+                            $farmerId->country = 'India';
+                            $farmerId->state_id = '1';
+                            $farmerId->district_id = '2';
+                            $farmerId->organization_id = '2';
+                            $farmerId->save();
+                        }else{
+                            $farmerId = $farmerId->replicate();
+                            $farmerId->plot_no = $plotNo;
+                            $farmerId->plot_area = $plotArea;
+                            $farmerId->area_in_acers = $totalAreaInAcres;
+                            $farmerId->surveyor_name = $surveyorName;
+                            $farmerId->latitude = $lat;
+                            $farmerId->longitude = $lng;
+                            $farmerId->save();
+                        }
+                        
+                        $farmerPlotId = FarmerPlot::where('farmer_id',$farmerId->id)->first();
+                        if(!$farmerPlotId){
+                            $farmerPlotId = new FarmerPlot();
+                            $farmerPlotId->farmer_id = $farmerId->id;
+                            $farmerPlotId->farmer_uniqueId = $clientId;
+                            $farmerPlotId->plot_no = $plotNo;
+                            $farmerPlotId->area_in_acers = $totalAreaInAcres;
+                            $farmerPlotId->save();
+                        }else{
+                            $farmerPlotId = $farmerPlotId->replicate();
+                            $farmerPlotId->farmer_id = $farmerId->id;
+                            $farmerPlotId->farmer_uniqueId = $clientId;
+                            $farmerPlotId->plot_no = $plotNo;
+                            $farmerPlotId->area_in_acers = $totalAreaInAcres;
+                            $farmerPlotId->save();
+                        }
+
+                        $polygonId = Polygon::where('farmer_id',$farmerId->id)->first();
+                        if(!$polygonId){
+                            $polygonId = new Polygon();
+                            $polygonId->farmer_id = $farmerId->id;
+                            $polygonId->farmer_plot_uniqueid = $clientId.'P'.$plotNo;
+                            $polygonId->ranges = json_encode($coordinates);
+                            $polygonId->latitude = $lat;
+                            $polygonId->longitude = $lng;
+                            $polygonId->plot_area = $plotArea;
+                            $polygonId->surveyor_id = $surveyorId;
+                            $polygonId->final_status = 'Approved';
+                            $polygonId->save();
+                        }else{
+                            $polygonId = $polygonId->replicate();
+                            $polygonId->farmer_id = $farmerId->id;
+                            $polygonId->farmer_plot_uniqueid = $clientId.'P'.$plotNo;
+                            $polygonId->ranges = json_encode($coordinates);
+                            $polygonId->latitude = $lat;
+                            $polygonId->longitude = $lng;
+                            $polygonId->plot_area = $plotArea;
+                            $polygonId->surveyor_id = $surveyorId;
+                            $polygonId->final_status = 'Approved';
+                            $polygonId->save();
+                        }
+
+                        $status = 'created';
+                        $action = 'Created new records';
+                    }
+                    
+                    $polygonDetail = [
+                        'feature_index' => $index,
+                        'object_id' => $properties['object_id'] ?? null,
+                        'client_id' => $clientId,
+                        'farmer_name' => $farmerName,
+                        'coordinates' => $coordinates,
+                        'first_coordinate' => ['lat' => $lat, 'lng' => $lng],
+                        'status' => $status,
+                        'action' => $action,
+                        'existing_polygon_id' => $existingPolygon ? $existingPolygon->id : null,
+                        'farmer_id' => $farmerId ?? null,
+                        'farmer_plot_id' => $farmerPlotId ?? null,
+                        'polygon_id' => $polygonId ?? null
+                    ];
+                    
+                    $polygonDetails[] = $polygonDetail;
+                    $processedResults[] = $polygonDetail;
+                }
+            }
+            DB::commit();
+            return response()->json([
+                'success' => true,
+                'message' => 'Polygon coordinates analysis and database processing completed successfully',
+                'analysis_report' => [
+                    'summary' => [
+                        'total_geojson_features' => count($geojsonData['features']),
+                        'processed_features' => count($processedResults),
+                        'updated_records' => $existingPolygonsCount,
+                        'created_records' => $newPolygonsCount
+                    ],
+                    'database_analysis' => [
+                        'polygons' => [
+                            'by_coordinates' => [
+                                'existing_count' => $existingPolygonsCount,
+                                'new_count' => $newPolygonsCount,
+                                'polygon_details' => $polygonDetails
+                            ]
+                        ]
+                    ],
+                    'processing_results' => [
+                        'total_processed' => count($processedResults),
+                        'updated_farmers' => $existingPolygonsCount,
+                        'created_farmers' => $newPolygonsCount,
+                        'details' => $processedResults
+                    ]
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'GeoJSON analysis failed',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get comprehensive analysis report (farmers, pipes, aerations, surveyors)
+     */
+    public function get_comprehensive_analysis()
+    {
+        try {
+            // Load existing GeoJSON file
+            $filename = 'geojson_data_2025-09-30_10-56-59.json';
+            $geojsonPath = storage_path('app/public/geojson/' . $filename);
+            $processedDataPath = storage_path('app/public/geojson/processed_data_2025-09-30_10-56-59.json');
+
+            if (!file_exists($geojsonPath)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'GeoJSON file not found: ' . $filename
+                ], 404);
+            }
+
+            // Load GeoJSON data
+            $geojsonContent = file_get_contents($geojsonPath);
+            $geojsonData = json_decode($geojsonContent, true);
+
+            if (!$geojsonData) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid GeoJSON file format'
+                ], 422);
+            }
+
+            // Load processed data if available
+            $processedData = [];
+            if (file_exists($processedDataPath)) {
+                $processedContent = file_get_contents($processedDataPath);
+                $processedData = json_decode($processedContent, true);
+            }
+
+            // Extract unique farmers from GeoJSON
+            $uniqueFarmers = [];
+            foreach ($geojsonData['features'] as $feature) {
+                $properties = $feature['properties'];
+                $clientId = $properties['client_id'] ?? null;
+                $farmerName = $properties['farmer_name'] ?? null;
+                
+                if ($clientId) {
+                    $uniqueFarmers[$clientId] = $farmerName;
+                }
+            }
+
+            // Check existing farmers in database
+            $existingFarmers = [];
+            if (!empty($uniqueFarmers)) {
+                $clientIds = array_keys($uniqueFarmers);
+                $existingFarmers = DB::table('final_farmers')
+                    ->whereIn('farmer_uniqueId', $clientIds)
+                    ->select('farmer_uniqueId', 'farmer_name')
+                    ->get()
+                    ->pluck('farmer_name', 'farmer_uniqueId')
+                    ->toArray();
+            }
+
+            // Check pipe_installation_pipeimg records
+            $pipeInstallationCount = DB::table('pipe_installation_pipeimg')
+                ->whereIn('farmer_uniqueId', array_keys($uniqueFarmers))
+                ->count();
+            
+            $pipeInstallationByPlotCount = DB::table('pipe_installation_pipeimg')
+                ->whereIn('farmer_plot_uniqueId', array_column($processedData, 'client_id'))
+                ->count();
+            
+            // Check aerations records
+            $aerationCount = DB::table('aerations')
+                ->whereIn('farmer_uniqueId', array_keys($uniqueFarmers))
+                ->count();
+            
+            $aerationByPlotCount = DB::table('aerations')
+                ->whereIn('farmer_plot_uniqueId', array_column($processedData, 'client_id'))
+                ->count();
+            
+            // Check existing polygons based on farmer_uniqueId
+            $existingPolygonsByFarmerCount = DB::table('polygons')
+                ->whereIn('farmer_uniqueId', array_keys($uniqueFarmers))
+                ->count();
+            
+            $newPolygonsByFarmerCount = count($uniqueFarmers) - $existingPolygonsByFarmerCount;
+            
+            // Check surveyor names in users table
+            $surveyorNames = [];
+            foreach ($geojsonData['features'] as $feature) {
+                $surveyorName = $feature['properties']['surveyor_name'] ?? '';
+                if (!empty(trim($surveyorName))) {
+                    $surveyorNames[] = trim($surveyorName);
+                }
+            }
+            $surveyorNames = array_unique($surveyorNames);
+            
+            $foundSurveyors = 0;
+            $notFoundSurveyors = 0;
+            $createdSurveyors = [];
+            $failedSurveyors = [];
+            
+            if (!empty($surveyorNames)) {
+                $existingSurveyors = DB::table('users')
+                    ->whereIn('name', $surveyorNames)
+                    ->pluck('name')
+                    ->toArray();
+                
+                $foundSurveyors = count($existingSurveyors);
+                $notFoundSurveyors = count($surveyorNames) - $foundSurveyors;
+                
+                // Create missing surveyors
+                foreach ($surveyorNames as $surveyorName) {
+                    if (!in_array($surveyorName, $existingSurveyors)) {
+                        try {
+                            // Generate unique email for surveyor
+                            $email = strtolower(str_replace(' ', '.', $surveyorName)) . '@surveyor.local';
+                            
+                            // Check if email already exists
+                            $existingUser = DB::table('users')->where('email', $email)->first();
+                            if ($existingUser) {
+                                $email = strtolower(str_replace(' ', '.', $surveyorName)) . '_' . time() . '@surveyor.local';
+                            }
+                            
+                            // Create surveyor user
+                            $userId = DB::table('users')->insertGetId([
+                                'name' => $surveyorName,
+                                'email' => $email,
+                                'password' => bcrypt('password123'), // Default password
+                                'status' => 'active',
+                                'created_at' => now(),
+                                'updated_at' => now()
+                            ]);
+                            
+                            if ($userId) {
+                                $createdSurveyors[] = [
+                                    'id' => $userId,
+                                    'name' => $surveyorName,
+                                    'email' => $email,
+                                    'status' => 'created'
+                                ];
+                                
+                                // Update found surveyors count
+                                $foundSurveyors++;
+                                $notFoundSurveyors--;
+                            }
+                            
+                        } catch (\Exception $e) {
+                            $failedSurveyors[] = [
+                                'name' => $surveyorName,
+                                'error' => $e->getMessage()
+                            ];
                         }
                     }
                 }
             }
-             
-            // Extract farmer ID from Client_ID field
-            $rawClientId = $extendedData['Client_ID'] ?? '';
-            $farmerId = preg_replace('/[cC]/', '', (string) $rawClientId); // Remove 'c' and 'C'
-            $farmerId = preg_replace('/\D+/', '', $farmerId); // Remove all non-digits
-            $farmerId = ltrim($farmerId, '0'); // Remove leading zeros
+
+            // Generate comprehensive analysis report
+            $analysisReport = [
+                'file_info' => [
+                    'loaded_file' => $filename,
+                    'file_path' => $geojsonPath,
+                    'file_size' => filesize($geojsonPath) . ' bytes',
+                    'processed_data_available' => file_exists($processedDataPath),
+                    'processed_data_path' => $processedDataPath,
+                    'load_timestamp' => date('Y-m-d H:i:s')
+                ],
+                'summary' => [
+                    'total_geojson_features' => count($geojsonData['features']),
+                    'unique_farmers_in_file' => count($uniqueFarmers),
+                    'existing_farmers_in_database' => count($existingFarmers),
+                    'new_farmers_to_add' => count($uniqueFarmers) - count($existingFarmers)
+                ],
+                'database_analysis' => [
+                    'farmers' => [
+                        'existing_count' => count($existingFarmers),
+                        'new_count' => count($uniqueFarmers) - count($existingFarmers),
+                        'total_in_file' => count($uniqueFarmers),
+                        'existing_farmers' => $existingFarmers
+                    ],
+                    'pipe_installations' => [
+                        'by_farmer_uniqueId' => $pipeInstallationCount,
+                        'by_farmer_plot_uniqueId' => $pipeInstallationByPlotCount
+                    ],
+                    'aerations' => [
+                        'by_farmer_uniqueId' => $aerationCount,
+                        'by_farmer_plot_uniqueId' => $aerationByPlotCount
+                    ],
+                    'polygons' => [
+                        'by_farmer_uniqueId' => [
+                            'existing_count' => $existingPolygonsByFarmerCount,
+                            'new_count' => $newPolygonsByFarmerCount,
+                            'total_farmers_checked' => count($uniqueFarmers)
+                        ]
+                    ],
+                    'surveyors' => [
+                        'found_in_users_table' => $foundSurveyors,
+                        'not_found_in_users_table' => $notFoundSurveyors,
+                        'total_in_file' => count($surveyorNames),
+                        'created_surveyors' => $createdSurveyors,
+                        'failed_surveyors' => $failedSurveyors
+                    ]
+                ],
+                'recommendations' => [
+                    'data_import' => count($uniqueFarmers) - count($existingFarmers) > 0 ? 
+                        'Import ' . (count($uniqueFarmers) - count($existingFarmers)) . ' new farmers' : 
+                        'No new farmers to import',
+                    'surveyor_setup' => count($createdSurveyors) > 0 ? 
+                        'Created ' . count($createdSurveyors) . ' new surveyor accounts' : 
+                        'All surveyors are already in the system',
+                    'surveyor_issues' => count($failedSurveyors) > 0 ? 
+                        'Failed to create ' . count($failedSurveyors) . ' surveyor accounts - check logs' : 
+                        'All surveyors created successfully'
+                ]
+            ];
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Comprehensive analysis report generated successfully',
+                'analysis_report' => $analysisReport
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Comprehensive analysis failed',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get detailed surveyor analysis from GeoJSON file
+     */
+    public function get_surveyor_analysis()
+    {
+        try {
+            // Load existing GeoJSON file
+            $filename = 'geojson_data_2025-09-30_10-56-59.json';
+            $geojsonPath = storage_path('app/public/geojson/' . $filename);
+
+            if (!file_exists($geojsonPath)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'GeoJSON file not found: ' . $filename
+                ], 404);
+            }
+
+            // Load GeoJSON data
+            $geojsonContent = file_get_contents($geojsonPath);
+            $geojsonData = json_decode($geojsonContent, true);
+
+            if (!$geojsonData) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid GeoJSON file format'
+                ], 422);
+            }
+
+            // Extract surveyor data from GeoJSON
+            $surveyorData = [];
+            $surveyorStats = [];
+            $surveyorPolygons = [];
+
+            foreach ($geojsonData['features'] as $index => $feature) {
+                $properties = $feature['properties'];
+                $surveyorName = trim($properties['surveyor_name'] ?? '');
+                
+                if (!empty($surveyorName)) {
+                    // Initialize surveyor if not exists
+                    if (!isset($surveyorStats[$surveyorName])) {
+                        $surveyorStats[$surveyorName] = [
+                            'name' => $surveyorName,
+                            'total_polygons' => 0,
+                            'total_farmers' => 0,
+                            'total_area' => 0,
+                            'polygon_ids' => [],
+                            'farmer_ids' => [],
+                            'areas' => []
+                        ];
+                    }
+
+                    // Count polygons and farmers
+                    $surveyorStats[$surveyorName]['total_polygons']++;
+                    $surveyorStats[$surveyorName]['polygon_ids'][] = $properties['object_id'] ?? $index;
+                    
+                    if ($properties['client_id']) {
+                        $surveyorStats[$surveyorName]['farmer_ids'][] = $properties['client_id'];
+                        $surveyorStats[$surveyorName]['total_farmers'] = count(array_unique($surveyorStats[$surveyorName]['farmer_ids']));
+                    }
+
+                    // Calculate area
+                    $plotArea = floatval($properties['plot_area'] ?? 0);
+                    $totalArea = floatval($properties['total_area_inacres'] ?? 0);
+                    $area = $totalArea > 0 ? $totalArea : $plotArea;
+                    
+                    if ($area > 0) {
+                        $surveyorStats[$surveyorName]['total_area'] += $area;
+                        $surveyorStats[$surveyorName]['areas'][] = $area;
+                    }
+
+                    // Store detailed polygon data
+                    $surveyorPolygons[] = [
+                        'surveyor_name' => $surveyorName,
+                        'object_id' => $properties['object_id'],
+                        'client_id' => $properties['client_id'],
+                        'farmer_name' => $properties['farmer_name'],
+                        'plot_area' => $properties['plot_area'],
+                        'total_area_inacres' => $properties['total_area_inacres'],
+                        'coordinates' => $feature['geometry']['coordinates'][0] ?? [],
+                        'x' => $properties['x'],
+                        'y' => $properties['y']
+                    ];
+                }
+            }
+
+            // Check which surveyors exist in users table
+            $surveyorNames = array_keys($surveyorStats);
+            $existingSurveyors = [];
+            $missingSurveyors = [];
+
+            if (!empty($surveyorNames)) {
+                $existingSurveyors = DB::table('users')
+                    ->whereIn('name', $surveyorNames)
+                    ->select('id', 'name', 'email', 'status', 'created_at')
+                    ->get()
+                    ->toArray();
+
+                $existingSurveyorNames = array_column($existingSurveyors, 'name');
+                $missingSurveyors = array_diff($surveyorNames, $existingSurveyorNames);
+            }
+
+            // Calculate statistics
+            $totalSurveyors = count($surveyorStats);
+            $existingCount = count($existingSurveyors);
+            $missingCount = count($missingSurveyors);
+            $totalPolygons = array_sum(array_column($surveyorStats, 'total_polygons'));
+            $totalFarmers = array_sum(array_column($surveyorStats, 'total_farmers'));
+            $totalArea = array_sum(array_column($surveyorStats, 'total_area'));
+
+            // Top performers
+            $topByPolygons = collect($surveyorStats)
+                ->sortByDesc('total_polygons')
+                ->take(5)
+                ->values()
+                ->toArray();
+
+            $topByArea = collect($surveyorStats)
+                ->sortByDesc('total_area')
+                ->take(5)
+                ->values()
+                ->toArray();
+
+            $topByFarmers = collect($surveyorStats)
+                ->sortByDesc('total_farmers')
+                ->take(5)
+                ->values()
+                ->toArray();
+
+            // Area distribution
+            $areaRanges = [
+                '0-1 acres' => 0,
+                '1-5 acres' => 0,
+                '5-10 acres' => 0,
+                '10+ acres' => 0
+            ];
+
+            foreach ($surveyorStats as $surveyor) {
+                $area = $surveyor['total_area'];
+                if ($area <= 1) {
+                    $areaRanges['0-1 acres']++;
+                } elseif ($area <= 5) {
+                    $areaRanges['1-5 acres']++;
+                } elseif ($area <= 10) {
+                    $areaRanges['5-10 acres']++;
+                    } else {
+                    $areaRanges['10+ acres']++;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Surveyor analysis completed successfully',
+                'analysis' => [
+                    'summary' => [
+                        'total_surveyors' => $totalSurveyors,
+                        'existing_in_database' => $existingCount,
+                        'missing_from_database' => $missingCount,
+                        'total_polygons_surveyed' => $totalPolygons,
+                        'total_farmers_surveyed' => $totalFarmers,
+                        'total_area_surveyed' => round($totalArea, 2) . ' acres',
+                        'average_polygons_per_surveyor' => $totalSurveyors > 0 ? round($totalPolygons / $totalSurveyors, 2) : 0,
+                        'average_farmers_per_surveyor' => $totalSurveyors > 0 ? round($totalFarmers / $totalSurveyors, 2) : 0,
+                        'average_area_per_surveyor' => $totalSurveyors > 0 ? round($totalArea / $totalSurveyors, 2) . ' acres' : '0 acres'
+                    ],
+                    'surveyor_details' => array_values($surveyorStats),
+                    'top_performers' => [
+                        'by_polygons' => $topByPolygons,
+                        'by_area' => $topByArea,
+                        'by_farmers' => $topByFarmers
+                    ],
+                    'area_distribution' => $areaRanges,
+                    'database_status' => [
+                        'existing_surveyors' => $existingSurveyors,
+                        'missing_surveyors' => array_values($missingSurveyors)
+                    ],
+                    'detailed_polygons' => $surveyorPolygons
+                ]
+            ], 200);
+
+                } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Surveyor analysis failed',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine()
+            ], 500);
+        }
+    }
+
+    /**
+     * Load and analyze saved GeoJSON file
+     */
+    public function load_geojson_analysis(Request $request)
+    {
+        try {
+            // Fixed file path - no need for filename input
+            $filename = 'geojson_data_2025-09-30_10-56-59.json';
+            $geojsonPath = storage_path('app/public/geojson/' . $filename);
+            $processedDataPath = storage_path('app/public/geojson/processed_data_' . str_replace('geojson_data_', '', $filename));
+
+            if (!file_exists($geojsonPath)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'GeoJSON file not found: ' . $filename
+                ], 404);
+            }
+
+            // Load GeoJSON data
+            $geojsonContent = file_get_contents($geojsonPath);
+            $geojsonData = json_decode($geojsonContent, true);
+
+            if (!$geojsonData) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid GeoJSON file format'
+                ], 422);
+            }
+
+            // Load processed data if available
+            $processedData = [];
+            if (file_exists($processedDataPath)) {
+                $processedContent = file_get_contents($processedDataPath);
+                $processedData = json_decode($processedContent, true);
+            }
+
+            // Extract unique farmers from GeoJSON
+            $uniqueFarmers = [];
+            foreach ($geojsonData['features'] as $feature) {
+                $properties = $feature['properties'];
+                $clientId = $properties['client_id'] ?? null;
+                $farmerName = $properties['farmer_name'] ?? null;
+                
+                if ($clientId) {
+                    $uniqueFarmers[$clientId] = $farmerName;
+                }
+            }
+
+            // Check existing farmers in database
+            $existingFarmers = [];
+            if (!empty($uniqueFarmers)) {
+                $clientIds = array_keys($uniqueFarmers);
+                $existingFarmers = DB::table('final_farmers')
+                    ->whereIn('farmer_uniqueId', $clientIds)
+                    ->select('farmer_uniqueId', 'farmer_name')
+                    ->get()
+                    ->pluck('farmer_name', 'farmer_uniqueId')
+                    ->toArray();
+            }
+
+            // Check pipe_installation_pipeimg records
+            $pipeInstallationCount = DB::table('pipe_installation_pipeimg')
+                ->whereIn('farmer_uniqueId', array_keys($uniqueFarmers))
+                ->count();
             
-            $count++; 
+            $pipeInstallationByPlotCount = DB::table('pipe_installation_pipeimg')
+                ->whereIn('farmer_plot_uniqueId', array_keys($uniqueFarmers))
+                ->count();
             
-            if (!$farmerId) {
-                echo "Skipping polygon {$count}: No farmer ID found in Client_ID field\n";
-                continue; // Skip if no farmer ID found
+            // Check aerations records
+            $aerationCount = DB::table('aerations')
+                ->whereIn('farmer_uniqueId', array_keys($uniqueFarmers))
+                ->count();
+            
+            $aerationByPlotCount = DB::table('aerations')
+                ->whereIn('farmer_plot_uniqueId', array_keys($uniqueFarmers))
+                ->count();
+            
+            // Check existing polygons based on coordinates
+            $existingPolygonsCount = 0;
+            $newPolygonsCount = 0;
+            
+            foreach ($geojsonData['features'] as $feature) {
+                $coordinates = $feature['geometry']['coordinates'][0] ?? [];
+                if (!empty($coordinates)) {
+                    // Get first coordinate for comparison
+                    $firstCoord = $coordinates[0];
+                    $lng = $firstCoord[0];
+                    $lat = $firstCoord[1];
+                    
+                    // Check if polygon exists with similar coordinates (within small range)
+                    $existingPolygon = DB::table('polygons')
+                        ->whereRaw("JSON_EXTRACT(ranges, '$[0].lat') BETWEEN ? AND ?", [$lat - 0.0001, $lat + 0.0001])
+                        ->whereRaw("JSON_EXTRACT(ranges, '$[0].lng') BETWEEN ? AND ?", [$lng - 0.0001, $lng + 0.0001])
+                        ->first();
+                    
+                    if ($existingPolygon) {
+                        $existingPolygonsCount++;
+                    } else {
+                        $newPolygonsCount++;
+                    }
+                }
             }
             
-            // Extract area in hectares - Dag_Wise_l is total area, FINAL_Q_GI is plot area
-            $totalArea = isset($extendedData['Dag_Wise_l']) && is_numeric($extendedData['Dag_Wise_l']) ? (float) $extendedData['Dag_Wise_l'] : null;
-            $plotArea = isset($extendedData['FINAL_Q_GI']) && is_numeric($extendedData['FINAL_Q_GI']) ? (float) $extendedData['FINAL_Q_GI'] : null;
+            // Check existing polygons based on farmer_uniqueId
+            $existingPolygonsByFarmerCount = DB::table('polygons')
+                ->whereIn('farmer_uniqueId', array_keys($uniqueFarmers))
+                ->count();
             
-            // Extract farmer name from F_client_l field
-            $farmerName = $extendedData['F_client_l'] ?? ('Farmer ' . $farmerId);
+            $newPolygonsByFarmerCount = count($uniqueFarmers) - $existingPolygonsByFarmerCount;
             
-            echo "Processing farmer ID: {$farmerId}, Name: {$farmerName}, Area: {$totalArea} hectares\n";
+            // Check surveyor names in users table
+            $surveyorNames = [];
+            foreach ($geojsonData['features'] as $feature) {
+                $surveyorName = $feature['properties']['surveyor_name'] ?? '';
+                if (!empty(trim($surveyorName))) {
+                    $surveyorNames[] = trim($surveyorName);
+                }
+            }
+            $surveyorNames = array_unique($surveyorNames);
             
-            // Extract collector information
-            $collectorFirstName = $extendedData['F_collecto'] ?? '';
-            $collectorLastName = $extendedData['F_collec_1'] ?? '';
-            $collectorName = trim($collectorFirstName . ' ' . $collectorLastName);
+            $foundSurveyors = 0;
+            $notFoundSurveyors = 0;
             
-            // Get coordinates from X and Y fields
-            $lat = isset($extendedData['Y']) && is_numeric($extendedData['Y']) ? (float) $extendedData['Y'] : null;
-            $lng = isset($extendedData['X']) && is_numeric($extendedData['X']) ? (float) $extendedData['X'] : null;
+            if (!empty($surveyorNames)) {
+                $existingSurveyors = DB::table('users')
+                    ->whereIn('name', $surveyorNames)
+                    ->pluck('name')
+                    ->toArray();
+                
+                $foundSurveyors = count($existingSurveyors);
+                $notFoundSurveyors = count($surveyorNames) - $foundSurveyors;
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Fixed GeoJSON file (geojson_data_2025-09-30_10-56-59.json) loaded and analyzed successfully',
+                'file_info' => [
+                    'loaded_file' => $filename,
+                    'file_path' => $geojsonPath,
+                    'file_size' => filesize($geojsonPath) . ' bytes',
+                    'processed_data_available' => file_exists($processedDataPath),
+                    'processed_data_path' => $processedDataPath
+                ],
+                'data' => [
+                    'geojson_analysis' => [
+                        'total_features' => count($geojsonData['features']),
+                        'unique_farmers_in_geojson' => count($uniqueFarmers),
+                        'geojson_type' => $geojsonData['type'] ?? 'Unknown'
+                    ],
+                    'database_analysis' => [
+                        'existing_farmers_count' => count($existingFarmers),
+                        'new_farmers_count' => count($uniqueFarmers) - count($existingFarmers)
+                    ],
+                    'pipe_installation_analysis' => [
+                        'by_farmer_uniqueId' => $pipeInstallationCount,
+                        'by_farmer_plot_uniqueId' => $pipeInstallationByPlotCount
+                    ],
+                    'aeration_analysis' => [
+                        'by_farmer_uniqueId' => $aerationCount,
+                        'by_farmer_plot_uniqueId' => $aerationByPlotCount
+                    ],
+                    'polygon_analysis' => [
+                        'by_coordinates' => [
+                            'existing_polygons_count' => $existingPolygonsCount,
+                            'new_polygons_count' => $newPolygonsCount,
+                            'total_polygons_checked' => $existingPolygonsCount + $newPolygonsCount
+                        ],
+                        'by_farmer_uniqueId' => [
+                            'existing_polygons_count' => $existingPolygonsByFarmerCount,
+                            'new_polygons_count' => $newPolygonsByFarmerCount,
+                            'total_farmers_checked' => count($uniqueFarmers)
+                        ]
+                    ],
+                    'surveyor_analysis' => [
+                        'found_in_users_table' => $foundSurveyors,
+                        'not_found_in_users_table' => $notFoundSurveyors,
+                        'total_surveyors_in_geojson' => count($surveyorNames)
+                    ],
+                    'existing_farmers_in_db' => $existingFarmers,
+                    'geojson_features' => $geojsonData['features'], // All GeoJSON features
+                    'processed_data' => $processedData // Processed data if available
+                ]
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'GeoJSON loading failed',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine()
+            ], 500);
+        }
+    }
+
+    /**
+     * Load specific GeoJSON file and return analysis report
+     */
+    public function load_specific_geojson_analysis()
+    {
+        try {
+            // Fixed file path
+            $filename = 'geojson_data_2025-09-30_10-56-59.json';
+            $geojsonPath = storage_path('app/public/geojson/' . $filename);
+            $processedDataPath = storage_path('app/public/geojson/processed_data_2025-09-30_10-56-59.json');
+
+            if (!file_exists($geojsonPath)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'GeoJSON file not found: ' . $filename,
+                    'file_path' => $geojsonPath
+                ], 404);
+            }
+
+            // Load GeoJSON data
+            $geojsonContent = file_get_contents($geojsonPath);
+            $geojsonData = json_decode($geojsonContent, true);
+
+            if (!$geojsonData) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid GeoJSON file format'
+                ], 422);
+            }
+
+            // Load processed data if available
+            $processedData = [];
+            if (file_exists($processedDataPath)) {
+                $processedContent = file_get_contents($processedDataPath);
+                $processedData = json_decode($processedContent, true);
+            }
+
+            // Extract unique farmers from GeoJSON
+            $uniqueFarmers = [];
+            foreach ($geojsonData['features'] as $feature) {
+                $properties = $feature['properties'];
+                $clientId = $properties['client_id'] ?? null;
+                $farmerName = $properties['farmer_name'] ?? null;
+                
+                if ($clientId) {
+                    $uniqueFarmers[$clientId] = $farmerName;
+                }
+            }
+
+            // Check existing farmers in database
+            $existingFarmers = [];
+            if (!empty($uniqueFarmers)) {
+                $clientIds = array_keys($uniqueFarmers);
+                $existingFarmers = DB::table('final_farmers')
+                    ->whereIn('farmer_uniqueId', $clientIds)
+                    ->select('farmer_uniqueId', 'farmer_name')
+                    ->get()
+                    ->pluck('farmer_name', 'farmer_uniqueId')
+                    ->toArray();
+            }
+
+            // Check pipe_installation_pipeimg records
+            $pipeInstallationCount = DB::table('pipe_installation_pipeimg')
+                ->whereIn('farmer_uniqueId', array_keys($uniqueFarmers))
+                ->count();
             
-            // If X,Y coordinates are not available, use first coordinate from polygon
-            if (!$lat || !$lng) {
-                $lat = $coordinates[0]['lat'] ?? null;
-                $lng = $coordinates[0]['lng'] ?? null;
+            $pipeInstallationByPlotCount = DB::table('pipe_installation_pipeimg')
+                ->whereIn('farmer_plot_uniqueId', array_keys($uniqueFarmers))
+                ->count();
+            
+            // Check aerations records
+            $aerationCount = DB::table('aerations')
+                ->whereIn('farmer_uniqueId', array_keys($uniqueFarmers))
+                ->count();
+            
+            $aerationByPlotCount = DB::table('aerations')
+                ->whereIn('farmer_plot_uniqueId', array_keys($uniqueFarmers))
+                ->count();
+            
+            // Check existing polygons based on coordinates
+            $existingPolygonsCount = 0;
+            $newPolygonsCount = 0;
+            
+            foreach ($geojsonData['features'] as $feature) {
+                $coordinates = $feature['geometry']['coordinates'][0] ?? [];
+                if (!empty($coordinates)) {
+                    // Get first coordinate for comparison
+                    $firstCoord = $coordinates[0];
+                    $lng = $firstCoord[0];
+                    $lat = $firstCoord[1];
+                    
+                    // Check if polygon exists with similar coordinates (within small range)
+                    $existingPolygon = DB::table('polygons')
+                        ->whereRaw("JSON_EXTRACT(ranges, '$[0].lat') BETWEEN ? AND ?", [$lat - 0.0001, $lat + 0.0001])
+                        ->whereRaw("JSON_EXTRACT(ranges, '$[0].lng') BETWEEN ? AND ?", [$lng - 0.0001, $lng + 0.0001])
+                        ->first();
+                    
+                    if ($existingPolygon) {
+                        $existingPolygonsCount++;
+                    } else {
+                        $newPolygonsCount++;
+                    }
+                }
             }
             
-            // Find or create FinalFarmer
-            $finalFarmer = FinalFarmer::where('farmer_uniqueId', $farmerId)->first();
+            // Check existing polygons based on farmer_uniqueId
+            $existingPolygonsByFarmerCount = DB::table('polygons')
+                ->whereIn('farmer_uniqueId', array_keys($uniqueFarmers))
+                ->count();
             
-            if (!$finalFarmer) {
-                // Create new FinalFarmer
-                $finalFarmer = new FinalFarmer;
-                $finalFarmer->surveyor_id = 3783;
-                $finalFarmer->organization_id = 2;
-                $finalFarmer->farmer_survey_id = 3783;
-                $finalFarmer->farmer_name = $farmerName;
-                $finalFarmer->total_plot_area = $totalArea !== null ? $totalArea : 0;
-                $finalFarmer->available_area = $totalArea !== null ? $totalArea : 0;
-                $finalFarmer->area_in_acers = $totalArea !== null ? $totalArea : 0;
-                $finalFarmer->plot_no = 1;
-                $finalFarmer->own_area_in_acres = $totalArea !== null ? $totalArea : 0;
-                $finalFarmer->plot_area = $plotArea !== null ? $plotArea : 0;
-                $finalFarmer->land_ownership = "Own";
-                $finalFarmer->actual_owner_name = $farmerName;
-                $finalFarmer->final_status = "Approved";
-                $finalFarmer->onboard_completed = "Approved";
-                $finalFarmer->financial_year = "2025-2025";
-                $finalFarmer->season = "Kharif";
-                $finalFarmer->country_id = 101;
-                $finalFarmer->state_id = 1;
-                $finalFarmer->final_status_onboarding = "Completed";
-                $finalFarmer->status_onboarding = "Completed";
-                $finalFarmer->onboarding_form = "1";
+            $newPolygonsByFarmerCount = count($uniqueFarmers) - $existingPolygonsByFarmerCount;
+            
+            // Check surveyor names in users table
+            $surveyorNames = [];
+            foreach ($geojsonData['features'] as $feature) {
+                $surveyorName = $feature['properties']['surveyor_name'] ?? '';
+                if (!empty(trim($surveyorName))) {
+                    $surveyorNames[] = trim($surveyorName);
+                }
+            }
+            $surveyorNames = array_unique($surveyorNames);
+            
+            $foundSurveyors = 0;
+            $notFoundSurveyors = 0;
+            
+            if (!empty($surveyorNames)) {
+                $existingSurveyors = DB::table('users')
+                    ->whereIn('name', $surveyorNames)
+                    ->pluck('name')
+                    ->toArray();
                 
-                $finalFarmer->district_id = 2;
-                $finalFarmer->block_name = null; // Not available in this KML
-                $finalFarmer->panchayat_name = null; // Not available in this KML
-                $finalFarmer->village_name = null; // Not available in this KML
+                $foundSurveyors = count($existingSurveyors);
+                $notFoundSurveyors = count($surveyorNames) - $foundSurveyors;
+            }
+
+            // Generate comprehensive analysis report
+            $analysisReport = [
+                'file_info' => [
+                    'loaded_file' => $filename,
+                    'file_path' => $geojsonPath,
+                    'file_size' => filesize($geojsonPath) . ' bytes',
+                    'processed_data_available' => file_exists($processedDataPath),
+                    'processed_data_path' => $processedDataPath,
+                    'load_timestamp' => date('Y-m-d H:i:s')
+                ],
+                'summary' => [
+                    'total_geojson_features' => count($geojsonData['features']),
+                    'unique_farmers_in_file' => count($uniqueFarmers),
+                    'existing_farmers_in_database' => count($existingFarmers),
+                    'new_farmers_to_add' => count($uniqueFarmers) - count($existingFarmers),
+                    'total_polygons_checked' => $existingPolygonsCount + $newPolygonsCount,
+                    'existing_polygons' => $existingPolygonsCount,
+                    'new_polygons' => $newPolygonsCount
+                ],
+                'database_analysis' => [
+                    'farmers' => [
+                        'existing_count' => count($existingFarmers),
+                        'new_count' => count($uniqueFarmers) - count($existingFarmers),
+                        'total_in_file' => count($uniqueFarmers)
+                    ],
+                    'pipe_installations' => [
+                        'by_farmer_uniqueId' => $pipeInstallationCount,
+                        'by_farmer_plot_uniqueId' => $pipeInstallationByPlotCount
+                    ],
+                    'aerations' => [
+                        'by_farmer_uniqueId' => $aerationCount,
+                        'by_farmer_plot_uniqueId' => $aerationByPlotCount
+                    ],
+                    'polygons' => [
+                        'by_coordinates' => [
+                            'existing_count' => $existingPolygonsCount,
+                            'new_count' => $newPolygonsCount,
+                            'total_checked' => $existingPolygonsCount + $newPolygonsCount
+                        ],
+                        'by_farmer_uniqueId' => [
+                            'existing_count' => $existingPolygonsByFarmerCount,
+                            'new_count' => $newPolygonsByFarmerCount,
+                            'total_farmers_checked' => count($uniqueFarmers)
+                        ]
+                    ],
+                    'surveyors' => [
+                        'found_in_users_table' => $foundSurveyors,
+                        'not_found_in_users_table' => $notFoundSurveyors,
+                        'total_in_file' => count($surveyorNames),
+                        'created_surveyors' => $createdSurveyors,
+                        'failed_surveyors' => $failedSurveyors
+                    ]
+                ],
+                'recommendations' => [
+                    'data_import' => count($uniqueFarmers) - count($existingFarmers) > 0 ? 
+                        'Import ' . (count($uniqueFarmers) - count($existingFarmers)) . ' new farmers' : 
+                        'No new farmers to import',
+                    'polygon_import' => $newPolygonsCount > 0 ? 
+                        'Import ' . $newPolygonsCount . ' new polygons' : 
+                        'No new polygons to import',
+                    'surveyor_setup' => $notFoundSurveyors > 0 ? 
+                        'Setup ' . $notFoundSurveyors . ' surveyor accounts' : 
+                        'All surveyors are already in the system'
+                ]
+            ];
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Analysis report generated successfully for geojson_data_2025-09-30_10-56-59.json',
+                'analysis_report' => $analysisReport
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Analysis report generation failed',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine()
+            ], 500);
+        }
+    }
+
+    /**
+     * List all available GeoJSON files in storage
+     */
+    public function list_geojson_files()
+    {
+        try {
+            $storageDir = storage_path('app/public/geojson/');
+            
+            if (!is_dir($storageDir)) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'No GeoJSON files found',
+                    'files' => []
+                ], 200);
+            }
+
+            $files = glob($storageDir . 'geojson_data_*.json');
+            $fileList = [];
+
+            foreach ($files as $file) {
+                $filename = basename($file);
+                $fileInfo = [
+                    'filename' => $filename,
+                    'path' => $file,
+                    'size' => filesize($file),
+                    'created_at' => date('Y-m-d H:i:s', filemtime($file)),
+                    'processed_data_file' => 'processed_data_' . str_replace('geojson_data_', '', $filename),
+                    'processed_data_exists' => file_exists($storageDir . 'processed_data_' . str_replace('geojson_data_', '', $filename))
+                ];
+                $fileList[] = $fileInfo;
+            }
+
+            // Sort by creation time (newest first)
+            usort($fileList, function($a, $b) {
+                return $b['created_at'] <=> $a['created_at'];
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'GeoJSON files listed successfully',
+                'total_files' => count($fileList),
+                'files' => $fileList
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to list GeoJSON files',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    public function genrate_geojson_old_upload(Request $request){
+
+        try {
+            // Set comprehensive timeout and memory settings
+            set_time_limit(0); // 0 = no time limit
+            ini_set('memory_limit', '72000M');
+            ini_set('max_execution_time', 0);
+            ini_set('max_input_time', -1);
+            
+            // Additional timeout settings
+            if (function_exists('ignore_user_abort')) {
+                ignore_user_abort(true);
+            }
+            
+            // Set HTTP timeout headers
+            if (!headers_sent()) {
+                header('X-Accel-Buffering: no'); // Disable nginx buffering
+            }
+
+            // Check if a KML file was uploaded
+            if (!$request->hasFile('kml_file')) {
+                return response()->json(['message' => 'No KML file uploaded. Please upload a KML file with key "kml_file"'], 400);
+            }
+
+            $file = $request->file('kml_file');
+            
+            // Validate file type
+            if ($file->getClientOriginalExtension() !== 'kml') {
+                return response()->json(['message' => 'Invalid file type. Please upload a KML file'], 400);
+            }
+
+            // Load and parse the KML file
+            $kml = simplexml_load_file($file->getPathname());
+            
+            if ($kml === false) {
+                return response()->json(['message' => 'Failed to parse KML file'], 400);
+            }
+
+            // Register the KML namespace
+            $kml->registerXPathNamespace('kml', 'http://www.opengis.net/kml/2.2');
+            
+            // Find all Placemark elements
+            $placemarks = $kml->xpath('//kml:Placemark');
+            
+            $processedData = [];
+            $count = 0;
+            $created = 0;
+            $skippedNoFarmer = 0;
+            $errors = [];
+            
+            // Start database transaction for entire processing
+            DB::beginTransaction();
+            
+            try {
+                foreach ($placemarks as $placemark) {
+                try {
+                    // Register namespace for this placemark
+                    $placemark->registerXPathNamespace('kml', 'http://www.opengis.net/kml/2.2');
+                    
+                    // Extract farmer ID from layer field in ExtendedData
+                    $layerNodes = $placemark->xpath('.//kml:ExtendedData/kml:SchemaData/kml:SimpleData[@name="layer"]');
+                    $rawLayer = isset($layerNodes[0]) ? (string)$layerNodes[0] : '';
+                    
+                    if ($rawLayer === '') {
+                        $skippedNoFarmer++;
+                        continue;
+                    }
+                    
+                    // Extract farmer ID from layer field (e.g., "C813981484 — polygon list" -> "813981484")
+                    $farmerId = preg_replace('/\D+/', '', $rawLayer);
+                    
+                    if (!$farmerId) {
+                        $skippedNoFarmer++;
+                        continue;
+                    }
+                    
+                    // Extract area from ExtendedData if available
+                    $areaNodes = $placemark->xpath('.//kml:ExtendedData/kml:SchemaData/kml:SimpleData[@name="area ha"]');
+                    $areaHa = isset($areaNodes[0]) ? (float)$areaNodes[0] : null;
+                    
+                    // Extract polygon coordinates
+                    $coordNodes = $placemark->xpath('.//kml:Polygon/kml:outerBoundaryIs/kml:LinearRing/kml:coordinates');
+                    
+                    if (empty($coordNodes)) {
+                        continue; // Skip if no coordinates found
+                    }
+                    
+                    // Collect all coordinate ranges for this placemark
+                    $allRanges = [];
+                    
+                    foreach ($coordNodes as $coordNode) {
+                        $coordsStr = trim((string)$coordNode);
+                        if ($coordsStr === '') continue;
+                        
+                        // Parse coordinates
+                        $points = preg_split('/\s+/', $coordsStr);
+                        $latLngs = [];
+                        foreach ($points as $pt) {
+                            $parts = explode(',', trim($pt));
+                            if (count($parts) >= 2 && is_numeric($parts[0]) && is_numeric($parts[1])) {
+                                $latLngs[] = ['lat' => (float)$parts[1], 'lng' => (float)$parts[0]];
+                            }
+                        }
+                        
+                        if (!empty($latLngs)) {
+                            $allRanges[] = $latLngs;
+                        }
+                    }
+                    
+                    // Skip if no valid coordinates found
+                    if (empty($allRanges)) {
+                        continue;
+                    }
+                    
+                    // Get first two points from first range for latitude and longitude
+                    $firstRange = $allRanges[0];
+                    $lat = $firstRange[0]['lat'] ?? null;
+                    $lng = $firstRange[0]['lng'] ?? null;
+                    
+                    // Skip if coordinates are null
+                    if ($lat === null || $lng === null) {
+                        continue;
+                    }
+                    
+                    // Check if farmer exists
+                    $finalFarmer = FinalFarmer::where('farmer_uniqueId', $farmerId)->first();
+                    
+                    if ($finalFarmer) {
+                        // Farmer exists - check if this is a second polygon
+                        $existingPolygons = Polygon::where('farmer_uniqueId', $farmerId)->count();
+                        
+                        if ($existingPolygons > 0) {
+                            // This is a second or subsequent polygon - create P2, P3, etc.
+                            $plotNo = $existingPolygons + 1;
+                            $plotUniqueId = $farmerId . 'P' . $plotNo;
+                            
+                            // Create new FinalFarmer record for additional polygon
+                            $targetFarmer = $finalFarmer->replicate();
+                            $targetFarmer->plot_no = (string)$plotNo;
+                            $targetFarmer->farmer_plot_uniqueid = $plotUniqueId;
+                            $targetFarmer->plot_area = $areaHa !== null ? $areaHa : 0;
+                            $targetFarmer->area_in_acers = $areaHa !== null ? $areaHa : 0;
+                            $targetFarmer->save();
+                            
+                            // Create corresponding FarmerPlot record
+                            $farmerPlot = FarmerPlot::where('farmer_uniqueId', $farmerId)->where('plot_no', '1')->first();
+                            if ($farmerPlot) {
+                                $targetFarmerPlot = $farmerPlot->replicate();
+                                $targetFarmerPlot->farmer_id = $targetFarmer->id;
+                                $targetFarmerPlot->farmer_plot_uniqueid = $plotUniqueId;
+                                $targetFarmerPlot->plot_no = (string)$plotNo;
+                                $targetFarmerPlot->area_in_acers = $areaHa !== null ? $areaHa : 0;
+                                $targetFarmerPlot->save();
+                            }
+                            
+                            // Create polygon record with all ranges
+                            $polygon = new Polygon;
+                            $polygon->farmer_uniqueId = $farmerId;
+                            $polygon->farmer_id = $targetFarmer->id;
+                            $polygon->farmer_plot_uniqueid = $plotUniqueId;
+                            $polygon->ranges = json_encode($allRanges);
+                            $polygon->plot_no = (string)$plotNo;
+                            $polygon->final_status = "Approved";
+                            $polygon->area_units = "Hectare";
+                            $polygon->latitude = $lat;
+                            $polygon->longitude = $lng;
+                            $polygon->plot_area = $areaHa !== null ? $areaHa : 0;
+                            $polygon->save();
+                            
+                        } else {
+                            // First polygon for existing farmer
+                            $polygon = new Polygon;
+                            $polygon->farmer_uniqueId = $farmerId;
+                            $polygon->farmer_id = $finalFarmer->id;
+                            $polygon->farmer_plot_uniqueid = $farmerId . "P1";
+                            $polygon->ranges = json_encode($allRanges);
+                            $polygon->plot_no = "1";
+                            $polygon->final_status = "Approved";
+                            $polygon->area_units = "Hectare";
+                            $polygon->latitude = $lat;
+                            $polygon->longitude = $lng;
+                            $polygon->plot_area = $areaHa !== null ? $areaHa : 0;
+                            $polygon->save();
+                        }
+                        
+                    } else {
+                        // Farmer doesn't exist - create new farmer and polygon
+                        $finalFarmer = new FinalFarmer;
+                        $finalFarmer->surveyor_id = 3783;
+                        $finalFarmer->organization_id = 1;
+                        $finalFarmer->farmer_survey_id = 3783;
+                        $finalFarmer->farmer_name = 'Farmer ' . $farmerId;
+                        $finalFarmer->farmer_uniqueId = $farmerId;
+                        $finalFarmer->total_plot_area = $areaHa !== null ? $areaHa : 0;
+                        $finalFarmer->available_area = $areaHa !== null ? $areaHa : 0;
+                        $finalFarmer->area_in_acers = $areaHa !== null ? $areaHa : 0;
+                        $finalFarmer->plot_no = "1";
+                        $finalFarmer->own_area_in_acres = $areaHa !== null ? $areaHa : 0;
+                        $finalFarmer->plot_area = $areaHa !== null ? $areaHa : 0;
+                        $finalFarmer->land_ownership = "Own";
+                        $finalFarmer->actual_owner_name = $finalFarmer->farmer_name;
+                        $finalFarmer->final_status = "Approved";
+                        $finalFarmer->onboard_completed = "Approved";
+                        $finalFarmer->financial_year = "2025-2025";
+                        $finalFarmer->season = "Kharif";
+                        $finalFarmer->country_id = 101;
+                        $finalFarmer->state_id = 1;
+                        $finalFarmer->final_status_onboarding = "Completed";
+                        $finalFarmer->status_onboarding = "Completed";
+                        $finalFarmer->onboarding_form = "1";
+                        $finalFarmer->farmer_plot_uniqueid = $farmerId . "P1";
+                        $finalFarmer->save();
+                        
+                        // Create FarmerPlot record
+                        $farmerPlot = new FarmerPlot;
+                        $farmerPlot->farmer_id = $finalFarmer->id;
+                        $farmerPlot->farmer_uniqueId = $farmerId;
+                        $farmerPlot->farmer_plot_uniqueid = $farmerId . "P1";
+                        $farmerPlot->plot_no = "1";
+                        $farmerPlot->area_in_acers = $areaHa !== null ? $areaHa : 0;
+                        $farmerPlot->land_ownership = "Own";
+                        $farmerPlot->actual_owner_name = $finalFarmer->farmer_name;
+                        $farmerPlot->final_status = "Approved";
+                        $farmerPlot->status = "Approved";
+                        $farmerPlot->save();
+                        
+                        // Create polygon record with all ranges
+                        $polygon = new Polygon;
+                        $polygon->farmer_uniqueId = $farmerId;
+                        $polygon->farmer_id = $finalFarmer->id;
+                        $polygon->farmer_plot_uniqueid = $farmerId . "P1";
+                        $polygon->ranges = json_encode($allRanges);
+                        $polygon->plot_no = "1";
+                        $polygon->final_status = "Approved";
+                        $polygon->area_units = "Hectare";
+                        $polygon->latitude = $lat;
+                        $polygon->longitude = $lng;
+                        $polygon->plot_area = $areaHa !== null ? $areaHa : 0;
+                        $polygon->save();
+                    }
+                    
+                    $created++;
+                    
+                } catch (\Exception $e) {
+                    $errors[] = [
+                        'farmer_id' => $farmerId ?? 'unknown',
+                        'error' => $e->getMessage(),
+                        'line' => $e->getLine()
+                    ];
+                }
+            }
+            
+            // Commit transaction if all processing completed successfully
+            DB::commit();
+            
+            return response()->json([
+                'message' => 'KML processing completed successfully',
+                'created' => $created,
+                'skipped_no_farmer' => $skippedNoFarmer,
+                'errors' => $errors,
+                'file_name' => $file->getClientOriginalName()
+            ]);
+            
+            } catch (\Exception $e) {
+                // Rollback transaction on any error
+                DB::rollback();
                 
-                // Add collector information if available
-                if ($collectorName) {
-                    $finalFarmer->surveyor_name = $collectorName;
+                return response()->json([
+                    'message' => 'KML processing failed - all changes rolled back',
+                    'error' => $e->getMessage(),
+                    'line' => $e->getLine(),
+                    'created' => $created,
+                    'skipped_no_farmer' => $skippedNoFarmer,
+                    'errors' => $errors
+                ], 500);
+            }
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Processing failed',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+            ], 500);
+        }
+    }
+
+    public function genrate_geojson_data_kml(Request $request)
+    {
+        try {
+            // Set comprehensive timeout and memory settings
+            set_time_limit(0); // 0 = no time limit
+            ini_set('memory_limit', '72000M');
+            ini_set('max_execution_time', 0);
+            ini_set('max_input_time', -1);
+            
+            // Additional timeout settings
+            if (function_exists('ignore_user_abort')) {
+                ignore_user_abort(true);
+            }
+            
+            // Set HTTP timeout headers
+            if (!headers_sent()) {
+                header('X-Accel-Buffering: no'); // Disable nginx buffering
+            }
+
+            // Check if a KML file was uploaded
+            if (!$request->hasFile('kml_file')) {
+                return response()->json(['message' => 'No KML file uploaded. Please upload a KML file with key "kml_file"'], 400);
+            }
+
+            $file = $request->file('kml_file');
+            
+            // Validate file type
+            if ($file->getClientOriginalExtension() !== 'kml') {
+                return response()->json(['message' => 'Invalid file type. Please upload a KML file'], 400);
+            }
+
+            // Load and parse the KML file
+            $kml = simplexml_load_file($file->getPathname());
+            
+            if ($kml === false) {
+                return response()->json(['message' => 'Failed to parse KML file'], 400);
+            }
+
+            // Register the KML namespace
+            $kml->registerXPathNamespace('kml', 'http://www.opengis.net/kml/2.2');
+            
+            // Find all Placemark elements
+            $placemarks = $kml->xpath('//kml:Placemark');
+            
+            $processedData = [];
+            $count = 0;
+            
+            foreach ($placemarks as $placemark) {
+                
+                // Extract basic information
+                $name = (string) $placemark->name;
+            
+                // Extract ExtendedData
+                $extendedData = [];
+                if (isset($placemark->ExtendedData->SchemaData->SimpleData)) {
+                    foreach ($placemark->ExtendedData->SchemaData->SimpleData as $simpleData) {
+                        $extendedData[(string) $simpleData['name']] = (string) $simpleData;
+                    }
+                }
+                
+                // Extract coordinates and convert to [[lat, lng], [lat, lng]] format
+                $coordinates = [];
+                if (isset($placemark->MultiGeometry->Polygon->outerBoundaryIs->LinearRing->coordinates)) {
+                    $coordsString = (string) $placemark->MultiGeometry->Polygon->outerBoundaryIs->LinearRing->coordinates;
+                    
+                    // Split coordinates by spaces and process each coordinate pair
+                    $coordPairs = explode(' ', trim($coordsString));
+                    
+                    foreach ($coordPairs as $coordPair) {
+                        if (!empty(trim($coordPair))) {
+                            $parts = explode(',', trim($coordPair));
+                            if (count($parts) >= 2) {
+                                $lng = floatval($parts[0]); // Longitude (X)
+                                $lat = floatval($parts[1]); // Latitude (Y)
+                                $coordinates[] = ["lat"=>$lat, "lng"=>$lng]; // Format: [lat, lng]
+                            }
+                        }
+                    }
+                }
+                
+                // Extract farmer ID from Client_ID field
+                $rawClientId = $extendedData['Client_ID'] ?? '';
+                $farmerId = preg_replace('/[cC]/', '', (string) $rawClientId); // Remove 'c' and 'C'
+                $farmerId = preg_replace('/\D+/', '', $farmerId); // Remove all non-digits
+                $farmerId = ltrim($farmerId, '0'); // Remove leading zeros
+                
+                $count++; 
+                
+                if (!$farmerId) {
+                    echo "Skipping polygon {$count}: No farmer ID found in Client_ID field\n";
+                    continue; // Skip if no farmer ID found
+                }
+                
+                // Extract area in hectares - Dag_Wise_l is total area, FINAL_Q_GI is plot area
+                $totalArea = isset($extendedData['Dag_Wise_l']) && is_numeric($extendedData['Dag_Wise_l']) ? (float) $extendedData['Dag_Wise_l'] : null;
+                $plotArea = isset($extendedData['FINAL_Q_GI']) && is_numeric($extendedData['FINAL_Q_GI']) ? (float) $extendedData['FINAL_Q_GI'] : null;
+                
+                // Extract farmer name from F_client_l field
+                $farmerName = $rawClientId;
+                
+                echo "Processing farmer ID: {$farmerId}, Name: {$farmerName}, Area: {$totalArea} hectares\n";
+                
+                // Extract collector information
+                $collectorFirstName = $extendedData['F_collecto'] ?? '';
+                $collectorLastName = $extendedData['F_collec_1'] ?? '';
+                $collectorName = trim($collectorFirstName . ' ' . $collectorLastName);
+                
+                // Get coordinates from X and Y fields
+                $lat = isset($extendedData['Y']) && is_numeric($extendedData['Y']) ? (float) $extendedData['Y'] : null;
+                $lng = isset($extendedData['X']) && is_numeric($extendedData['X']) ? (float) $extendedData['X'] : null;
+                
+                // If X,Y coordinates are not available, use first coordinate from polygon
+                if (!$lat || !$lng) {
+                    $lat = $coordinates[0]['lat'] ?? null;
+                    $lng = $coordinates[0]['lng'] ?? null;
+                }
+                
+                // Find or create FinalFarmer
+                $finalFarmer = FinalFarmer::where('farmer_uniqueId', $farmerId)->first();
+                $polygon = polygon::where('farmer_plot_uniqueid', $farmerId . 'P1')->first();
+                
+                if ($finalFarmer && $polygon) {
+                    // Create new FinalFarmer
+                    $finalFarmer = finalFarmer->replicate();
+                    $finalFarmer->total_plot_area = $totalArea !== null ? $totalArea : 0;
+                    $finalFarmer->available_area = $totalArea !== null ? $totalArea : 0;
+                    $finalFarmer->area_in_acers = $totalArea !== null ? $totalArea : 0;
+                    $finalFarmer->plot_no = 2;
+                    $finalFarmer->own_area_in_acres = $totalArea !== null ? $totalArea : 0;
+                    $finalFarmer->plot_area = $plotArea !== null ? $plotArea : 0;
+                    
+    
+                    $finalFarmer->farmer_plot_uniqueid = $farmerId . 'P2';
+                    $finalFarmer->save();
+                    
+                    // Create P1 FarmerPlot
+                    $farmerPlot = new FarmerPlot;
+                    $farmerPlot->farmer_id = $finalFarmer->id;
+                    $farmerPlot->farmer_uniqueId = $farmerId;
+                    $farmerPlot->farmer_plot_uniqueid = $farmerId . 'P2';
+                    $farmerPlot->plot_no = 2;
+                    $farmerPlot->area_in_acers = $totalArea !== null ? $totalArea : 0;
+                    $farmerPlot->area_in_other = $totalArea !== null ? $totalArea : 0;
+                    $farmerPlot->area_in_other_unit = $totalArea !== null ? $totalArea : 0;
+                    $farmerPlot->area_acre_awd = $totalArea !== null ? $totalArea : 0;
+                    $farmerPlot->area_other_awd = $totalArea !== null ? $totalArea : 0;
+                    $farmerPlot->area_other_awd_unit = $totalArea !== null ? $totalArea : 0;
+                    $farmerPlot->land_ownership = $finalFarmer->land_ownership;
+                    $farmerPlot->actual_owner_name = $finalFarmer->actual_owner_name;
+                    $farmerPlot->final_status = $finalFarmer->final_status;
+                    $farmerPlot->status = $finalFarmer->final_status;
+                    $farmerPlot->save();
+                    
+                    $plotNo = '2';
+                } else {
+                    $plotNo = 1;
+                }
+                
+                // Create Polygon
+                $polygon = new Polygon;
+                $polygon->farmer_uniqueId = $farmerId;
+                $polygon->farmer_id = $finalFarmer->id;
+                $polygon->farmer_plot_uniqueid = $farmerId . 'P' . $plotNo;
+                $polygon->ranges = json_encode($coordinates);
+                $polygon->plot_no = $plotNo;
+                $polygon->final_status = "Approved";
+                $polygon->area_units = "Hectare";
+                $polygon->latitude = $lat;
+                $polygon->longitude = $lng;
+                if ($totalArea !== null || $plotArea !== null) $polygon->plot_area = $plotArea;
+                $polygon->save();
+            }
+            
+            echo "\nTotal polygons processed: {$count}\n";
+            
+            return response()->json([
+                'message' => 'KML file processed successfully',
+                'total_polygons' => $count,
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Processing failed',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+            ], 500);
+        }
+    }
+    public function genrate_geojsonBanshihari_polygons(Request $request){
+        try {
+            // Set comprehensive timeout and memory settings
+            set_time_limit(0);
+            ini_set('memory_limit', '72000M');
+            ini_set('max_execution_time', 0);
+            ini_set('max_input_time', -1);
+            
+            if (function_exists('ignore_user_abort')) {
+                ignore_user_abort(true);
+            }
+            
+            if (!headers_sent()) {
+                header('X-Accel-Buffering: no');
+            }
+
+            // Check if a file was uploaded
+            if (!$request->hasFile('file')) {
+                return response()->json(['message' => 'No file uploaded'], 400);
+            }
+
+            $file = $request->file('file');
+            $data = Excel::toArray([], $file);
+            
+            \DB::beginTransaction();
+            $processedCount = 0;
+            
+            foreach ($data[0] as $rowIndex => $row) {
+                if ($rowIndex === 0) {
+                    // Skip the header row
+                    continue;
                 }
 
-                // Assign unique IDs
-                $finalFarmer->farmer_uniqueId = $farmerId;
-                $finalFarmer->farmer_plot_uniqueid = $farmerId . 'P1';
-                $finalFarmer->save();
+                $farmerUniqueId = str_ireplace('c', '', str_ireplace('C', '', $row[0])); // Remove 'c' from value, e.g., C825678482 -> 825678482
+                $surveyorName = $row[1];
+                $stateName = $row[2];
+                $districtName = $row[3];
+                $talukaName = $row[4];
+                $pancayatName = $row[5];
+                $villageName = $row[6];
+                $Pincode = $row[7];
+                $MobileNumber = $row[8];
+                $TotalLand = $row[9];
+                $AWDLandSize = $row[10];
+                $PlotDagNo = $row[11];
+                $KhatiyanNumber = $row[12];
+                $ValidatedArea = $row[13];
+                $GisArea = $row[14];
                 
-                // Create location hierarchy - using default values since location data not available in this KML
-                $this->createLocationHierarchy($finalFarmer, 'Murshidabad', 'Default Block', 'Default Panchayat', 'Default Village');
+                $surveyour = User::where('name', trim($surveyorName))->first();
+                if(!$surveyour){
+                    $surveyour = new User();
+                    $surveyour->name = $surveyorName;
+                    $surveyour->save();
+                }
+                $surveyorId = $surveyour->id;
+
+                $state = State::where('name', trim($stateName))->first();
+                $district = District::where('district', trim($districtName))->where('state_id', $state->id??null)->first();
+                $taluka = Taluka::where('taluka', trim($talukaName))->where('district_id', $district->id??null)->first();
+                $pancayat = Panchayat::where('panchayat', trim($pancayatName))->where('taluka_id', $taluka->id??null)->first();
+                $village = Village::where('village', trim($villageName))->where('panchayat_id', $pancayat->id??null)->first();
                 
-                // Create P1 FarmerPlot
-                $farmerPlot = new FarmerPlot;
-                $farmerPlot->farmer_id = $finalFarmer->id;
-                $farmerPlot->farmer_uniqueId = $farmerId;
-                $farmerPlot->farmer_plot_uniqueid = $farmerId . 'P1';
-                $farmerPlot->plot_no = 1;
-                $farmerPlot->area_in_acers = $totalArea !== null ? $totalArea : 0;
-                $farmerPlot->area_in_other = $totalArea !== null ? $totalArea : 0;
-                $farmerPlot->area_in_other_unit = $totalArea !== null ? $totalArea : 0;
-                $farmerPlot->area_acre_awd = $totalArea !== null ? $totalArea : 0;
-                $farmerPlot->area_other_awd = $totalArea !== null ? $totalArea : 0;
-                $farmerPlot->area_other_awd_unit = $totalArea !== null ? $totalArea : 0;
-                $farmerPlot->land_ownership = $finalFarmer->land_ownership;
-                $farmerPlot->actual_owner_name = $finalFarmer->actual_owner_name;
-                $farmerPlot->final_status = $finalFarmer->final_status;
-                $farmerPlot->status = $finalFarmer->final_status;
+                $finalFarmer = FinalFarmer::where('farmer_uniqueId', $farmerUniqueId)->latest()->first();
+                if($finalFarmer){
+                    $plotNo = $finalFarmer->plot_no + 1;
+                }else{
+                    $plotNo = 1;
+                }
+
+                // Create FinalFarmer record
+                $farmer = new FinalFarmer();
+                $farmer->farmer_uniqueId = $farmerUniqueId;
+                $farmer->farmer_plot_uniqueid = $farmerUniqueId . 'P' . $plotNo;
+                $farmer->surveyor_id = $surveyorId;
+                $farmer->state_id = $state->id??null;
+                $farmer->district_id = $district->id??null;
+                $farmer->taluka_id = $taluka->id??null;
+                $farmer->panchayat_id = $pancayat->id??null;
+                $farmer->village_id = $village->id??null;
+                $farmer->plot_no = $plotNo;
+                $farmer->total_land = $TotalLand;
+                $farmer->awd_land_size = $AWDLandSize;
+                $farmer->plot_dag_no = $PlotDagNo;
+                $farmer->khatiyan_number = $KhatiyanNumber;
+                $farmer->validated_area = $ValidatedArea;
+                $farmer->gis_area = $GisArea;
+                $farmer->pincode = $Pincode;
+                $farmer->mobile_number = $MobileNumber;
+                $farmer->land_ownership = "Owner";
+                $farmer->actual_owner_name = $row[0];
+                $farmer->final_status = "Approved";
+                $farmer->status = "Approved";
+                $farmer->onboard_completed = "Approved";
+                $farmer->final_status_onboarding = "Completed";
+                $farmer->status_onboarding = "Completed";
+                $farmer->onboarding_form = "1";
+                $farmer->financial_year = "2025-2025";
+                $farmer->season = "Kharif";
+                $farmer->country_id = 101;
+                $farmer->total_plot_area = $TotalLand;
+                $farmer->available_area = $TotalLand;
+                $farmer->area_in_acers = $TotalLand;
+                $farmer->own_area_in_acres = $TotalLand;
+                $farmer->plot_area = $AWDLandSize;
+                $farmer->state_name = $stateName;
+                $farmer->district_name = $districtName;
+                $farmer->taluka_name = $talukaName;
+                $farmer->panchayat_name = $pancayatName;
+                $farmer->village_name = $villageName;
+                $farmer->block_name = $talukaName;
+                $farmer->save();
+
+                // Create FarmerPlot record
+                $farmerPlot = new FarmerPlot();
+                $farmerPlot->farmer_id = $farmer->id;
+                $farmerPlot->farmer_uniqueId = $farmerUniqueId;
+                $farmerPlot->farmer_plot_uniqueid = $farmerUniqueId . 'P' . $plotNo;
+                $farmerPlot->plot_no = $plotNo;
+                $farmerPlot->area_in_acers = $AWDLandSize;
+                $farmerPlot->area_in_other = $AWDLandSize;
+                $farmerPlot->area_in_other_unit = $AWDLandSize;
+                $farmerPlot->area_acre_awd = $AWDLandSize;
+                $farmerPlot->area_other_awd = $AWDLandSize;
+                $farmerPlot->area_other_awd_unit = $AWDLandSize;
+                $farmerPlot->daag_number = $PlotDagNo;
+                $farmerPlot->khatian_number = $KhatiyanNumber;
+                $farmerPlot->land_ownership = "Owner";
+                $farmerPlot->actual_owner_name = $row[0];
+                $farmerPlot->final_status = "Approved";
+                $farmerPlot->status = "Approved";
                 $farmerPlot->save();
-                
-                $plotNo = '1';
-            } else {
-                // Farmer exists, get the next plot number
-                $existingPlotsCount = FarmerPlot::where('farmer_uniqueId', $farmerId)->count();
-                $plotNo = (string)($existingPlotsCount + 1);
-                $plotUniqueId = $farmerId . 'P' . $plotNo;
-                
-                // Create new plot for existing farmer
-                $targetFarmer = $finalFarmer->replicate();
-                $targetFarmer->plot_no = $plotNo;
-                $targetFarmer->farmer_plot_uniqueid = $plotUniqueId;
-                if ($totalArea !== null || $plotArea !== null) {
-                    $targetFarmer->plot_area = $plotArea;
-                    $targetFarmer->area_in_acers = $totalArea;
-                }
-                $targetFarmer->save();
-                
-                // Create new FarmerPlot
-                $basePlot = FarmerPlot::where('farmer_uniqueId', $farmerId)->where('plot_no', 1)->first();
-                if ($basePlot) {
-                    $targetFarmerPlot = $basePlot->replicate();
-                    $targetFarmerPlot->farmer_id = $targetFarmer->id;
-                    $targetFarmerPlot->farmer_plot_uniqueid = $plotUniqueId;
-                    $targetFarmerPlot->plot_no = $plotNo;
-                    if ($totalArea !== null || $plotArea !== null) {
-                        $targetFarmerPlot->area_in_acers = $totalArea;
-                        $targetFarmerPlot->area_in_other = $totalArea;
-                        $targetFarmerPlot->area_in_other_unit = $totalArea;
-                        $targetFarmerPlot->area_acre_awd = $totalArea;
-                        $targetFarmerPlot->area_other_awd = $totalArea;
-                        $targetFarmerPlot->area_other_awd_unit = $totalArea;
-                    }
-                    $targetFarmerPlot->save();
-                }
-                
-                $finalFarmer = $targetFarmer;
+
+                $processedCount++;
             }
-            
-            // Create Polygon
-            $polygon = new Polygon;
-            $polygon->farmer_uniqueId = $farmerId;
-            $polygon->farmer_id = $finalFarmer->id;
-            $polygon->farmer_plot_uniqueid = $farmerId . 'P' . $plotNo;
-            $polygon->ranges = json_encode($coordinates);
-            $polygon->plot_no = $plotNo;
-            $polygon->final_status = "Approved";
-            $polygon->area_units = "Hectare";
-            $polygon->latitude = $lat;
-            $polygon->longitude = $lng;
-            if ($totalArea !== null || $plotArea !== null) $polygon->plot_area = $plotArea;
-            $polygon->save();
+
+            \DB::commit();
+
+            return response()->json([
+                'message' => 'Data processed successfully',
+                'total_processed' => $processedCount
+            ], 200);
+
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return response()->json([
+                'message' => 'Processing failed',
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+            ], 500);
+        }
+    }
+// public function genrate_geojson(Request $request){
+//     try {
+//          // Set comprehensive timeout and memory settings
+//         set_time_limit(0);
+//         ini_set('memory_limit', '72000M');
+//         ini_set('max_execution_time', 0);
+//         ini_set('max_input_time', -1);
+        
+//         if (function_exists('ignore_user_abort')) {
+//             ignore_user_abort(true);
+//         }
+        
+//         if (!headers_sent()) {
+//             header('X-Accel-Buffering: no');
+//         }
+
+        
+//     // Check if a file was uploaded
+//     if (!$request->hasFile('file')) {
+//         return response()->json(['message' => 'No file uploaded'], 400);
+//     }
+
+//     $file = $request->file('file');
+ 
+//     $data = Excel::toArray([], $file);
+//     \DB::beginTransaction();
+//     foreach ($data[0] as $rowIndex => $row) {
+//         if ($rowIndex === 0) {
+//             // Skip the header row
+//             continue;
+//         }
+
+//         $farmerUniqueId = str_ireplace('c', '', str_ireplace('C', '', $row[0])); // Remove 'c' from value, e.g., C825678482 -> 825678482
+//         $surveyorName = $row[1];
+//         $stateName = $row[2];
+//         $districtName = $row[3];
+//         $talukaName = $row[4];
+//         $pancayatName = $row[5];
+//         $villageName = $row[6];
+//         $Pincode = $row[7];
+//         $MobileNumber = $row[8];
+//         $TotalLand = $row[9];
+//         $AWDLandSize = $row[10];
+//         $PlotDagNo = $row[11];
+//         $KhatiyanNumber = $row[12];
+//         $ValidatedArea = $row[13];
+//         $GisArea = $row[14];
+        
+//         $surveyour = User::where('name', trim($surveyorName))->first();
+//         if(!$surveyour){
+//             $surveyour = new User();
+//             $surveyour->name = $surveyorName;
+//             $surveyour->save();
+//         }
+//         $surveyorId = $surveyour->id;
+
+//         $state = State::where('name', trim($stateName))->first();
+//         $district = District::where('name', trim($districtName),'state_id' => $state->id??null)->first();
+//         $taluka = Taluka::where('name', trim($talukaName),'district_id' => $district->id??null)->first();
+//         $pancayat = Panchayat::where('name', trim($pancayatName),'taluka_id' => $taluka->id??null)->first();
+//         $village = Village::where('name', trim($villageName),'panchayat_id' => $pancayat->id??null)->first();
+        
+//         $finalFarmer = FinalFarmer::where('farmer_uniqueId', $farmerUniqueId)->latest()->first();
+//         if($finalFarmer){
+//             $plotNo = $finalFarmer->plot_no + 1;
+//         }else{
+//             $plotNo = 1;
+//         }
+
+//         $farmer = new FinalFarmer();
+//         $farmer->farmer_uniqueId = $farmerUniqueId;
+//         $farmer->surveyor_id = $surveyorId;
+//         $farmer->state_id = $state->id??null;
+//         $farmer->district_id = $district->id??null;
+//         $farmer->taluka_id = $taluka->id??null;
+//         $farmer->pancayat_id = $pancayat->id??null;
+//         $farmer->village_id = $village->id??null;
+//         $farmer->plot_no = $plotNo;
+//         $farmer->total_land = $TotalLand;
+//         $farmer->awd_land_size = $AWDLandSize;
+//         $farmer->plot_dag_no = $PlotDagNo;
+//         $farmer->khatiyan_number = $KhatiyanNumber;
+//         $farmer->validated_area = $ValidatedArea;
+//         $farmer->gis_area = $GisArea;
+//         $farmer->pincode = $Pincode;
+//         $farmer->mobile_number = $MobileNumber;
+//         $farmer->land_ownership = "Owner";
+//         $farmer->actual_owner_name = $row[0];
+//         $farmer->final_status = "Approved";
+//         $farmer->status = "Approved";
+//         $farmer->save();
+
+//         dd($row);
+//     }
+
+//     } catch (\Exception $e) {
+//         return response()->json([
+//             'message' => 'Processing failed',
+//             'error' => $e->getMessage(),
+//             'line' => $e->getLine(),
+//         ], 500);
+//     }
+// }
+// public function genrate_geojson_Banshihari_blockPolygon(Request $request)
+// {
+//     try {
+//         // Set comprehensive timeout and memory settings
+//         set_time_limit(0);
+//         ini_set('memory_limit', '72000M');
+//         ini_set('max_execution_time', 0);
+//         ini_set('max_input_time', -1);
+        
+//         if (function_exists('ignore_user_abort')) {
+//             ignore_user_abort(true);
+//         }
+        
+//         if (!headers_sent()) {
+//             header('X-Accel-Buffering: no');
+//         }
+
+        
+//         // Check if a KML file was uploaded
+//         if (!$request->hasFile('kml_file')) {
+//             return response()->json(['message' => 'No KML file uploaded. Please upload a KML file with key "kml_file"'], 400);
+//         }
+
+//         $file = $request->file('kml_file');
+        
+//         // Validate file type
+//         if ($file->getClientOriginalExtension() !== 'kml') {
+//             return response()->json(['message' => 'Invalid file type. Please upload a KML file'], 400);
+//         }
+
+//         // Load and parse the KML file
+//         $kml = simplexml_load_file($file->getPathname());
+        
+//         if ($kml === false) {
+//             return response()->json(['message' => 'Failed to parse KML file'], 400);
+//         }
+
+//         // Register the KML namespace
+//         $kml->registerXPathNamespace('kml', 'http://www.opengis.net/kml/2.2');
+        
+//         // Find all Placemark elements
+//         $placemarks = $kml->xpath('//kml:Placemark');
+        
+//         $processedData = [];
+//         $count = 0;
+        
+//         foreach ($placemarks as $placemark) {
+//             dd($placemark);
+//         }
+//     }catch (\Exception $e) {
+//         return response()->json([
+//             'message' => 'Processing failed',
+//             'error' => $e->getMessage(),
+//             'line' => $e->getLine(),
+//         ], 500);
+//     }
+// }
+public function genrate_geojson_consolidated_report(Request $request)
+{
+    try {
+        // Set comprehensive timeout and memory settings
+        set_time_limit(0);
+        ini_set('memory_limit', '72000M');
+        ini_set('max_execution_time', 0);
+        ini_set('max_input_time', -1);
+        
+        if (function_exists('ignore_user_abort')) {
+            ignore_user_abort(true);
         }
         
-        echo "\nTotal polygons processed: {$count}\n";
+        if (!headers_sent()) {
+            header('X-Accel-Buffering: no');
+        }
+
+        $data = \DB::select("SELECT 
+            f.farmer_uniqueId,
+            f.farmer_name,
+            f.farmer_plot_uniqueid,
+            pipe_data.total_pipe_installation,
+            MAX(CASE WHEN pipe_data.row_no = 1 THEN pipe_data.pipe_no END) AS pipe_no_1,
+            MAX(CASE WHEN pipe_data.row_no = 1 THEN pipe_data.date END) AS pipe_date_1,
+            MAX(CASE WHEN pipe_data.row_no = 1 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_1,
+            MAX(CASE WHEN pipe_data.row_no = 2 THEN pipe_data.pipe_no END) AS pipe_no_2,
+            MAX(CASE WHEN pipe_data.row_no = 2 THEN pipe_data.date END) AS pipe_date_2,
+            MAX(CASE WHEN pipe_data.row_no = 2 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_2,
+            MAX(CASE WHEN pipe_data.row_no = 3 THEN pipe_data.pipe_no END) AS pipe_no_3,
+            MAX(CASE WHEN pipe_data.row_no = 3 THEN pipe_data.date END) AS pipe_date_3,
+            MAX(CASE WHEN pipe_data.row_no = 3 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_3,
+            MAX(CASE WHEN pipe_data.row_no = 4 THEN pipe_data.pipe_no END) AS pipe_no_4,
+            MAX(CASE WHEN pipe_data.row_no = 4 THEN pipe_data.date END) AS pipe_date_4,
+            MAX(CASE WHEN pipe_data.row_no = 4 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_4,
+            MAX(CASE WHEN pipe_data.row_no = 5 THEN pipe_data.pipe_no END) AS pipe_no_5,
+            MAX(CASE WHEN pipe_data.row_no = 5 THEN pipe_data.date END) AS pipe_date_5,
+            MAX(CASE WHEN pipe_data.row_no = 5 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_5,
+            MAX(CASE WHEN pipe_data.row_no = 6 THEN pipe_data.pipe_no END) AS pipe_no_6,
+            MAX(CASE WHEN pipe_data.row_no = 6 THEN pipe_data.date END) AS pipe_date_6,
+            MAX(CASE WHEN pipe_data.row_no = 6 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_6,
+            MAX(CASE WHEN pipe_data.row_no = 7 THEN pipe_data.pipe_no END) AS pipe_no_7,
+            MAX(CASE WHEN pipe_data.row_no = 7 THEN pipe_data.date END) AS pipe_date_7,
+            MAX(CASE WHEN pipe_data.row_no = 7 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_7,
+            MAX(CASE WHEN pipe_data.row_no = 8 THEN pipe_data.pipe_no END) AS pipe_no_8,    
+            MAX(CASE WHEN pipe_data.row_no = 8 THEN pipe_data.date END) AS pipe_date_8,
+            MAX(CASE WHEN pipe_data.row_no = 8 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_8,
+            MAX(CASE WHEN pipe_data.row_no = 9 THEN pipe_data.pipe_no END) AS pipe_no_9,
+            MAX(CASE WHEN pipe_data.row_no = 9 THEN pipe_data.date END) AS pipe_date_9,
+            MAX(CASE WHEN pipe_data.row_no = 9 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_9,
+            MAX(CASE WHEN pipe_data.row_no = 10 THEN pipe_data.pipe_no END) AS pipe_no_10,
+            MAX(CASE WHEN pipe_data.row_no = 10 THEN pipe_data.date END) AS pipe_date_10,
+            MAX(CASE WHEN pipe_data.row_no = 10 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_10,
+            MAX(CASE WHEN pipe_data.row_no = 11 THEN pipe_data.pipe_no END) AS pipe_no_11,
+            MAX(CASE WHEN pipe_data.row_no = 11 THEN pipe_data.date END) AS pipe_date_11,
+            MAX(CASE WHEN pipe_data.row_no = 11 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_11,
+            MAX(CASE WHEN pipe_data.row_no = 12 THEN pipe_data.pipe_no END) AS pipe_no_12,
+            MAX(CASE WHEN pipe_data.row_no = 12 THEN pipe_data.date END) AS pipe_date_12,
+            MAX(CASE WHEN pipe_data.row_no = 12 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_12,
+            MAX(CASE WHEN pipe_data.row_no = 13 THEN pipe_data.pipe_no END) AS pipe_no_13,
+            MAX(CASE WHEN pipe_data.row_no = 13 THEN pipe_data.date END) AS pipe_date_13,
+            MAX(CASE WHEN pipe_data.row_no = 13 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_13,
+            MAX(CASE WHEN pipe_data.row_no = 14 THEN pipe_data.pipe_no END) AS pipe_no_14,
+            MAX(CASE WHEN pipe_data.row_no = 14 THEN pipe_data.date END) AS pipe_date_14,
+            MAX(CASE WHEN pipe_data.row_no = 14 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_14,
+            MAX(CASE WHEN pipe_data.row_no = 15 THEN pipe_data.pipe_no END) AS pipe_no_15,
+            MAX(CASE WHEN pipe_data.row_no = 15 THEN pipe_data.date END) AS pipe_date_15,
+            MAX(CASE WHEN pipe_data.row_no = 15 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_15,
+            MAX(CASE WHEN pipe_data.row_no = 16 THEN pipe_data.pipe_no END) AS pipe_no_16,
+            MAX(CASE WHEN pipe_data.row_no = 16 THEN pipe_data.date END) AS pipe_date_16,
+            MAX(CASE WHEN pipe_data.row_no = 16 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_16,
+            MAX(CASE WHEN pipe_data.row_no = 17 THEN pipe_data.pipe_no END) AS pipe_no_17,
+            MAX(CASE WHEN pipe_data.row_no = 17 THEN pipe_data.date END) AS pipe_date_17,
+            MAX(CASE WHEN pipe_data.row_no = 17 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_17,
+            MAX(CASE WHEN pipe_data.row_no = 18 THEN pipe_data.pipe_no END) AS pipe_no_18,
+            MAX(CASE WHEN pipe_data.row_no = 18 THEN pipe_data.date END) AS pipe_date_18,
+            MAX(CASE WHEN pipe_data.row_no = 18 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_18,
+            MAX(CASE WHEN pipe_data.row_no = 19 THEN pipe_data.pipe_no END) AS pipe_no_19,
+            MAX(CASE WHEN pipe_data.row_no = 19 THEN pipe_data.date END) AS pipe_date_19,
+            MAX(CASE WHEN pipe_data.row_no = 19 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_19,
+            MAX(CASE WHEN pipe_data.row_no = 20 THEN pipe_data.pipe_no END) AS pipe_no_20,
+            MAX(CASE WHEN pipe_data.row_no = 20 THEN pipe_data.date END) AS pipe_date_20,
+            MAX(CASE WHEN pipe_data.row_no = 20 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_20,
+            MAX(CASE WHEN pipe_data.row_no = 21 THEN pipe_data.pipe_no END) AS pipe_no_21,
+            MAX(CASE WHEN pipe_data.row_no = 21 THEN pipe_data.date END) AS pipe_date_21,
+            MAX(CASE WHEN pipe_data.row_no = 21 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_21,
+            MAX(CASE WHEN pipe_data.row_no = 22 THEN pipe_data.pipe_no END) AS pipe_no_22,
+            MAX(CASE WHEN pipe_data.row_no = 22 THEN pipe_data.date END) AS pipe_date_22,  
+            MAX(CASE WHEN pipe_data.row_no = 22 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_22,
+            MAX(CASE WHEN pipe_data.row_no = 23 THEN pipe_data.pipe_no END) AS pipe_no_23,
+            MAX(CASE WHEN pipe_data.row_no = 23 THEN pipe_data.date END) AS pipe_date_23,
+            MAX(CASE WHEN pipe_data.row_no = 23 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_23,
+            MAX(CASE WHEN pipe_data.row_no = 24 THEN pipe_data.pipe_no END) AS pipe_no_24,
+            MAX(CASE WHEN pipe_data.row_no = 24 THEN pipe_data.date END) AS pipe_date_24,
+            MAX(CASE WHEN pipe_data.row_no = 24 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_24,
+            MAX(CASE WHEN pipe_data.row_no = 25 THEN pipe_data.pipe_no END) AS pipe_no_25,
+            MAX(CASE WHEN pipe_data.row_no = 25 THEN pipe_data.date END) AS pipe_date_25,
+            MAX(CASE WHEN pipe_data.row_no = 25 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_25,
+            MAX(CASE WHEN pipe_data.row_no = 26 THEN pipe_data.pipe_no END) AS pipe_no_26,
+            MAX(CASE WHEN pipe_data.row_no = 26 THEN pipe_data.date END) AS pipe_date_26,
+            MAX(CASE WHEN pipe_data.row_no = 26 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_26,
+            MAX(CASE WHEN pipe_data.row_no = 27 THEN pipe_data.pipe_no END) AS pipe_no_27,
+            MAX(CASE WHEN pipe_data.row_no = 27 THEN pipe_data.date END) AS pipe_date_27,
+            MAX(CASE WHEN pipe_data.row_no = 27 THEN pipe_data.surveyor_name END) AS pipe_surveyor_name_27,
+            MAX(CASE WHEN pipe_data.row_no = 28 THEN pipe_data.pipe_no END) AS pipe_no_28,
+            MAX(CASE WHEN pipe_data.row_no = 28 THEN pipe_data.date END) AS pipe_date_28,
+            MAX(CASE WHEN pipe_data.row_no = 28 THEN pipe_data.surveyor_name END) AS surveyor_name_28,
+            MAX(CASE WHEN pipe_data.row_no = 29 THEN pipe_data.pipe_no END) AS pipe_no_29,
+            MAX(CASE WHEN pipe_data.row_no = 29 THEN pipe_data.date END) AS pipe_date_29,
+            MAX(CASE WHEN pipe_data.row_no = 29 THEN pipe_data.surveyor_name END) AS surveyor_name_29,
+            MAX(CASE WHEN pipe_data.row_no = 30 THEN pipe_data.pipe_no END) AS pipe_no_30,
+            MAX(CASE WHEN pipe_data.row_no = 30 THEN pipe_data.date END) AS pipe_date_30,
+            MAX(CASE WHEN pipe_data.row_no = 30 THEN pipe_data.surveyor_name END) AS surveyor_name_30,
+            MAX(CASE WHEN pipe_data.row_no = 31 THEN pipe_data.pipe_no END) AS pipe_no_31,
+            MAX(CASE WHEN pipe_data.row_no = 31 THEN pipe_data.date END) AS pipe_date_31,
+            MAX(CASE WHEN pipe_data.row_no = 31 THEN pipe_data.surveyor_name END) AS surveyor_name_31,
+            MAX(CASE WHEN pipe_data.row_no = 32 THEN pipe_data.pipe_no END) AS pipe_no_32,
+            MAX(CASE WHEN pipe_data.row_no = 32 THEN pipe_data.date END) AS pipe_date_32,
+            MAX(CASE WHEN pipe_data.row_no = 32 THEN pipe_data.surveyor_name END) AS surveyor_name_32,
+            MAX(CASE WHEN pipe_data.row_no = 33 THEN pipe_data.pipe_no END) AS pipe_no_33,
+            MAX(CASE WHEN pipe_data.row_no = 33 THEN pipe_data.date END) AS pipe_date_33,
+            MAX(CASE WHEN pipe_data.row_no = 33 THEN pipe_data.surveyor_name END) AS surveyor_name_33,
+            MAX(CASE WHEN pipe_data.row_no = 34 THEN pipe_data.pipe_no END) AS pipe_no_34,
+            MAX(CASE WHEN pipe_data.row_no = 34 THEN pipe_data.date END) AS pipe_date_34,
+            MAX(CASE WHEN pipe_data.row_no = 34 THEN pipe_data.surveyor_name END) AS surveyor_name_34,
+            MAX(CASE WHEN pipe_data.row_no = 35 THEN pipe_data.pipe_no END) AS pipe_no_35,
+            MAX(CASE WHEN pipe_data.row_no = 35 THEN pipe_data.date END) AS pipe_date_35,
+            MAX(CASE WHEN pipe_data.row_no = 35 THEN pipe_data.surveyor_name END) AS surveyor_name_35,
+            MAX(CASE WHEN pipe_data.row_no = 36 THEN pipe_data.pipe_no END) AS pipe_no_36,
+            MAX(CASE WHEN pipe_data.row_no = 36 THEN pipe_data.date END) AS pipe_date_36,
+            MAX(CASE WHEN pipe_data.row_no = 36 THEN pipe_data.surveyor_name END) AS surveyor_name_36,
+            MAX(CASE WHEN pipe_data.row_no = 37 THEN pipe_data.pipe_no END) AS pipe_no_37,
+            MAX(CASE WHEN pipe_data.row_no = 37 THEN pipe_data.date END) AS pipe_date_37,
+            MAX(CASE WHEN pipe_data.row_no = 37 THEN pipe_data.surveyor_name END) AS surveyor_name_37,
+            MAX(CASE WHEN pipe_data.row_no = 38 THEN pipe_data.pipe_no END) AS pipe_no_38,
+            MAX(CASE WHEN pipe_data.row_no = 38 THEN pipe_data.date END) AS pipe_date_38,
+            MAX(CASE WHEN pipe_data.row_no = 38 THEN pipe_data.surveyor_name END) AS surveyor_name_38,
+            MAX(CASE WHEN pipe_data.row_no = 39 THEN pipe_data.pipe_no END) AS pipe_no_39,
+            MAX(CASE WHEN pipe_data.row_no = 39 THEN pipe_data.date END) AS pipe_date_39,
+            MAX(CASE WHEN pipe_data.row_no = 39 THEN pipe_data.surveyor_name END) AS surveyor_name_39,
+            MAX(CASE WHEN pipe_data.row_no = 40 THEN pipe_data.pipe_no END) AS pipe_no_40,
+            MAX(CASE WHEN pipe_data.row_no = 40 THEN pipe_data.date END) AS pipe_date_40,
+            MAX(CASE WHEN pipe_data.row_no = 40 THEN pipe_data.surveyor_name END) AS surveyor_name_40,
+            MAX(CASE WHEN pipe_data.row_no = 41 THEN pipe_data.pipe_no END) AS pipe_no_41,
+            MAX(CASE WHEN pipe_data.row_no = 41 THEN pipe_data.date END) AS pipe_date_41,
+            MAX(CASE WHEN pipe_data.row_no = 41 THEN pipe_data.surveyor_name END) AS surveyor_name_41,
+            MAX(CASE WHEN pipe_data.row_no = 42 THEN pipe_data.pipe_no END) AS pipe_no_42,
+            MAX(CASE WHEN pipe_data.row_no = 42 THEN pipe_data.date END) AS pipe_date_42,
+            MAX(CASE WHEN pipe_data.row_no = 42 THEN pipe_data.surveyor_name END) AS surveyor_name_42,
+            MAX(CASE WHEN pipe_data.row_no = 43 THEN pipe_data.pipe_no END) AS pipe_no_43,
+            MAX(CASE WHEN pipe_data.row_no = 43 THEN pipe_data.date END) AS pipe_date_43,
+            MAX(CASE WHEN pipe_data.row_no = 43 THEN pipe_data.surveyor_name END) AS surveyor_name_43,
+            MAX(CASE WHEN pipe_data.row_no = 44 THEN pipe_data.pipe_no END) AS pipe_no_44,
+            MAX(CASE WHEN pipe_data.row_no = 44 THEN pipe_data.date END) AS pipe_date_44,
+            MAX(CASE WHEN pipe_data.row_no = 44 THEN pipe_data.surveyor_name END) AS surveyor_name_44,
+            MAX(CASE WHEN pipe_data.row_no = 45 THEN pipe_data.pipe_no END) AS pipe_no_45,
+            MAX(CASE WHEN pipe_data.row_no = 45 THEN pipe_data.date END) AS pipe_date_45,
+            MAX(CASE WHEN pipe_data.row_no = 45 THEN pipe_data.surveyor_name END) AS surveyor_name_45,
+            MAX(CASE WHEN pipe_data.row_no = 46 THEN pipe_data.pipe_no END) AS pipe_no_46,
+            MAX(CASE WHEN pipe_data.row_no = 46 THEN pipe_data.date END) AS pipe_date_46,
+            MAX(CASE WHEN pipe_data.row_no = 46 THEN pipe_data.surveyor_name END) AS surveyor_name_46,
+            MAX(CASE WHEN pipe_data.row_no = 47 THEN pipe_data.pipe_no END) AS pipe_no_47,
+            MAX(CASE WHEN pipe_data.row_no = 47 THEN pipe_data.date END) AS pipe_date_47,
+            MAX(CASE WHEN pipe_data.row_no = 47 THEN pipe_data.surveyor_name END) AS surveyor_name_47,
+            MAX(CASE WHEN pipe_data.row_no = 48 THEN pipe_data.pipe_no END) AS pipe_no_48,
+            MAX(CASE WHEN pipe_data.row_no = 48 THEN pipe_data.date END) AS pipe_date_48,
+            MAX(CASE WHEN pipe_data.row_no = 48 THEN pipe_data.surveyor_name END) AS surveyor_name_48,
+            MAX(CASE WHEN pipe_data.row_no = 49 THEN pipe_data.pipe_no END) AS pipe_no_49,
+            MAX(CASE WHEN pipe_data.row_no = 49 THEN pipe_data.date END) AS pipe_date_49,
+            MAX(CASE WHEN pipe_data.row_no = 49 THEN pipe_data.surveyor_name END) AS surveyor_name_49,
+            MAX(CASE WHEN pipe_data.row_no = 50 THEN pipe_data.pipe_no END) AS pipe_no_50,
+            MAX(CASE WHEN pipe_data.row_no = 50 THEN pipe_data.date END) AS pipe_date_50,
+            MAX(CASE WHEN pipe_data.row_no = 50 THEN pipe_data.surveyor_name END) AS surveyor_name_50,
+            MAX(CASE WHEN pipe_data.row_no = 51 THEN pipe_data.pipe_no END) AS pipe_no_51,
+            MAX(CASE WHEN pipe_data.row_no = 51 THEN pipe_data.date END) AS pipe_date_51,
+            MAX(CASE WHEN pipe_data.row_no = 51 THEN pipe_data.surveyor_name END) AS surveyor_name_51,
+
+            aerations_data.total_aeration,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 1 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_1,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 1 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_1,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 1 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_1,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 1 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_1,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 2 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_2,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 2 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_2,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 2 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_2,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 2 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_2,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 3 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_3,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 3 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_3,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 3 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_3,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 3 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_3,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 4 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_4,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 4 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_4,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 4 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_4,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 4 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_4,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 5 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_5,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 5 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_5,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 5 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_5,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 5 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_5,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 6 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_6,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 6 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_6,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 6 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_6,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 6 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_6,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 7 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_7,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 7 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_7,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 7 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_7,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 7 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_7,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 8 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_8,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 8 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_8,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 8 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_8,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 8 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_8,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 9 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_9,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 9 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_9,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 9 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_9,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 9 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_9,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 10 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_10,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 10 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_10,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 10 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_10,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 10 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_10,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 11 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_11,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 11 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_11,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 11 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_11,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 11 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_11,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 12 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_12,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 12 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_12,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 12 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_12,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 12 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_12,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 13 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_13,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 13 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_13,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 13 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_13,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 13 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_13,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 14 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_14,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 14 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_14,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 14 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_14,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 14 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_14,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 15 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_15,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 15 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_15,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 15 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_15,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 15 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_15,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 16 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_16,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 16 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_16,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 16 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_16,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 16 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_16,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 17 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_17,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 17 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_17,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 17 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_17,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 17 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_17,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 18 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_18,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 18 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_18,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 18 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_18,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 18 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_18,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 19 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_19,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 19 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_19,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 19 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_19,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 19 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_19,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 20 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_20,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 20 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_20,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 20 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_20,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 20 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_20,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 21 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_21,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 21 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_21,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 21 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_21,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 21 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_21,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 22 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_22,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 22 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_22,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 22 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_22,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 22 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_22,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 23 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_23,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 23 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_23,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 23 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_23,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 23 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_23,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 24 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_24,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 24 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_24,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 24 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_24,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 24 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_24,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 25 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_25,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 25 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_25,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 25 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_25,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 25 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_25,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 26 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_26,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 26 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_26,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 26 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_26,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 26 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_26,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 27 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_27,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 27 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_27,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 27 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_27,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 27 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_27,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 28 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_28,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 28 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_28,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 28 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_28,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 28 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_28,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 29 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_29,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 29 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_29,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 29 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_29,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 29 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_29,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 30 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_30,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 30 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_30,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 30 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_30,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 30 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_30,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 31 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_31,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 31 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_31,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 31 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_31,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 31 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_31,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 32 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_32,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 32 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_32,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 32 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_32,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 32 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_32,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 33 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_33,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 33 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_33,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 33 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_33,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 33 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_33,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 34 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_34,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 34 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_34,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 34 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_34,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 34 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_34,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 35 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_35,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 35 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_35,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 35 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_35,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 35 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_35,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 36 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_36,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 36 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_36,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 36 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_36,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 36 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_36,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 37 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_37,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 37 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_37,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 37 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_37,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 37 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_37,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 38 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_38,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 38 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_38,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 38 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_38,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 38 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_38,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 39 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_39,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 39 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_39,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 39 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_39,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 39 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_39,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 40 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_40,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 40 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_40,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 40 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_40,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 40 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_40,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 41 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_41,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 41 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_41,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 41 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_41,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 41 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_41,
+            
+            MAX(CASE WHEN aerations_data.aeration_row_no = 42 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_42,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 42 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_42,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 42 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_42,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 42 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_42,
+
+            MAX(CASE WHEN aerations_data.aeration_row_no = 43 THEN aerations_data.aerations_pipe_no END) AS aerations_pipe_no_43,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 43 THEN aerations_data.aerations_aeration_no END) AS aerations_aeration_no_43,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 43 THEN aerations_data.aerations_date_survey END) AS aerations_date_survey_43,
+            MAX(CASE WHEN aerations_data.aeration_row_no = 43 THEN aerations_data.aerationsurveyor_name END) AS aerationsurveyor_name_43
+
+
+        FROM 
+            final_farmers f
+        JOIN (
+            SELECT 
+                pipe_installation_pipeimg.pipe_no,
+                pipe_installation_pipeimg.date,
+                pipe_installation_pipeimg.farmer_plot_uniqueid,
+                ROW_NUMBER() OVER (PARTITION BY pipe_installation_pipeimg.farmer_plot_uniqueid ORDER BY id) AS row_no,
+                COUNT(*) OVER (PARTITION BY pipe_installation_pipeimg.farmer_plot_uniqueid) AS total_pipe_installation,
+                u.name as surveyor_name
+            FROM 
+                pipe_installation_pipeimg
+            left join users u on pipe_installation_pipeimg.surveyor_id = u.id
+            ORDER BY pipe_installation_pipeimg.id DESC
+        ) AS pipe_data ON f.farmer_plot_uniqueid = pipe_data.farmer_plot_uniqueid
+
+        Left Join (
+            SELECT 
+                aerations.pipe_no as aerations_pipe_no,
+                aerations.aeration_no as aerations_aeration_no,
+                aerations.date_survey as aerations_date_survey,
+                aerations.farmer_plot_uniqueid,
+                ROW_NUMBER() OVER (PARTITION BY aerations.farmer_plot_uniqueid ORDER BY id) AS aeration_row_no,
+                COUNT(*) OVER (PARTITION BY aerations.farmer_plot_uniqueid) AS total_aeration,
+                u.name as aerationsurveyor_name
+            FROM 
+                aerations
+            left join users u on aerations.surveyor_id = u.id
+            ORDER BY aerations.id DESC
+        ) AS aerations_data ON f.farmer_plot_uniqueid = aerations_data.farmer_plot_uniqueid
+
+        GROUP BY  f.farmer_uniqueId
+        order by aerations_data.total_aeration desc;
+        ");
+
+        // Convert data to CSV format
+        if (empty($data)) {
+            return response()->json(['message' => 'No data found'], 404);
+        }
+
+        // Create CSV content
+        $csvContent = '';
         
-        return response()->json([
-            'message' => 'KML file processed successfully',
-            'total_polygons' => $count,
-        ]);
+        // Get headers from first row
+        $headers = array_keys((array)$data[0]);
+        $csvContent .= implode(',', $headers) . "\n";
+        
+        // Add data rows
+        foreach ($data as $row) {
+            $rowArray = (array)$row;
+            $csvRow = [];
+            foreach ($rowArray as $value) {
+                // Escape CSV values
+                $value = str_replace('"', '""', $value);
+                $csvRow[] = '"' . $value . '"';
+            }
+            $csvContent .= implode(',', $csvRow) . "\n";
+        }
+
+        // Generate filename with timestamp
+        $filename = 'farmer_data_' . date('Y-m-d_H-i-s') . '.csv';
+        
+        // Set headers for CSV download
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache',
+            'Expires' => '0'
+        ];
+
+        return response($csvContent, 200, $headers);
         
     } catch (\Exception $e) {
         return response()->json([
-            'message' => 'Processing failed',
+            'message' => 'Error generating CSV',
             'error' => $e->getMessage(),
-            'line' => $e->getLine(),
+            'line' => $e->getLine()
         ], 500);
     }
 }
+public function genrate_geojson_data(Request $request)
+{
+    try {
+        // Set comprehensive timeout and memory settings
+    set_time_limit(0);
+    ini_set('memory_limit', '72000M');
+    ini_set('max_execution_time', 0);
+    ini_set('max_input_time', -1);
+    
+    if (function_exists('ignore_user_abort')) {
+        ignore_user_abort(true);
+    }
+    
+    if (!headers_sent()) {
+        header('X-Accel-Buffering: no');
+    }
 
-public function genrate_geojson(Request $request)
+    // Check if a file was uploaded
+    if (!$request->hasFile('file')) {
+        return response()->json(['message' => 'No file uploaded'], 400);
+    }
+
+    $file = $request->file('file');
+
+    // Extract Farmer Unique IDs from the uploaded Excel file
+    $farmerUniqueIds = [];
+    $data = Excel::toArray([], $file);
+    \DB::beginTransaction();
+    foreach ($data[0] as $rowIndex => $row) {
+        if ($rowIndex === 0) {
+            // Skip the header row
+            continue;
+        }
+
+        //Farmers' name	ONBOARDING ID	New Id	Old Land (Ha)	Polygon area	Mobile No.	village	Volunteer Name	Block/ Taluka	Gram Panchayat	District	State
+        $farmerName = trim($row[0]);
+        $farmerId = trim($row[2]);
+        $areainAcre = round(floatval($row[3] ?? 0), 2);
+        $mobileNo = trim($row[5]);
+        $villageName = trim($row[6]);
+        $volunteerName = trim($row[7]);
+        $blockName = trim($row[8]);
+        $panchayatName = trim($row[9]);
+        $district_name = trim($row[10]);
+        $state_name = trim($row[11]);
+
+        $state = State::where('name', $state_name)->first();
+        $district = District::where('district', $district_name)->where('state_id', $state->id??null)->first();
+        $block = Taluka::where('taluka', $blockName)->where('district_id', $district->id??null)->first();
+
+        $panchayat = Panchayat::where('panchayat', $panchayatName)->where('taluka_id', $block->id??null)->first();
+
+        $village = Village::where('village', $villageName)->where('panchayat_id', $panchayat->id??null)->first();
+ 
+        $finalFarmer = FinalFarmer::where('farmer_uniqueId', $farmerId)->latest()->first();
+        if($finalFarmer){
+            $plotNo = $finalFarmer->plot_no + 1;
+        }else{
+            $plotNo = 1;
+        }
+        $finalFarmer = new FinalFarmer;
+        $finalFarmer->farmer_name = $farmerName;
+        $finalFarmer->farmer_uniqueId = $farmerId;
+        $finalFarmer->farmer_plot_uniqueid = $farmerId . 'P' . $plotNo;
+        $finalFarmer->total_plot_area = $areainAcre;
+        $finalFarmer->available_area = $areainAcre;
+        $finalFarmer->area_in_acers = $areainAcre;
+        $finalFarmer->plot_no = $plotNo;
+        $finalFarmer->own_area_in_acres = $areainAcre;
+        $finalFarmer->plot_area = $areainAcre;
+        $finalFarmer->land_ownership = "Own";
+        $finalFarmer->actual_owner_name = $farmerName;
+        $finalFarmer->final_status = "Approved";
+        $finalFarmer->onboard_completed = "Approved";
+        $finalFarmer->financial_year = "2025-2025";
+        $finalFarmer->season = "Kharif";
+        $finalFarmer->country_id = 101;
+        $finalFarmer->state_id = $state->id??null;
+        $finalFarmer->final_status_onboarding = "Completed";
+        $finalFarmer->status_onboarding = "Completed";
+        $finalFarmer->onboarding_form = "1";
+        $finalFarmer->district_id = $district->id??null;
+        $finalFarmer->taluka_id = $block->id??null;
+        $finalFarmer->panchayat_id = $panchayat->id??null;
+        $finalFarmer->village_id = $village->id??null;
+        $finalFarmer->block_name = $blockName;
+        $finalFarmer->panchayat_name = $panchayatName;
+        $finalFarmer->village_name = $villageName;
+        $finalFarmer->surveyor_name = $volunteerName;
+        $finalFarmer->save();
+        $farmerPlot = new FarmerPlot;
+        $farmerPlot->farmer_id = $finalFarmer->id;
+        $farmerPlot->farmer_uniqueId = $farmerId;
+        $farmerPlot->farmer_plot_uniqueid = $farmerId . 'P' . $plotNo;
+        $farmerPlot->plot_no = $plotNo;
+        $farmerPlot->area_in_acers = $areainAcre;
+        $farmerPlot->area_in_other = $areainAcre;
+        $farmerPlot->area_in_other_unit = $areainAcre;
+        $farmerPlot->area_acre_awd = $areainAcre;
+        $farmerPlot->area_other_awd = $areainAcre;
+        $farmerPlot->area_other_awd_unit = $areainAcre;
+        $farmerPlot->land_ownership = "Own";
+        $farmerPlot->actual_owner_name = $farmerName;
+        $farmerPlot->final_status = "Approved";
+        $farmerPlot->status = "Approved";
+        $farmerPlot->save();
+
+    }
+
+    \DB::commit();
+
+    return response()->json(['message' => 'Farmer Uploaded Successfully',"total_farmers" => ($rowIndex+1)], 200);
+    } catch (\Throwable $th) {
+        \DB::rollBack();
+        return response()->json(['message' => 'Farmer Uploaded Failed',"error" => $th->getMessage()], 500);
+    }
+    
+}
+public function genrate_geojson_used_for(Request $request)
 {
     // Set comprehensive timeout and memory settings
     set_time_limit(0);

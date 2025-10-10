@@ -25,6 +25,8 @@ use App\Http\Controllers\Api\V1\CallerlistController;
 use App\Http\Controllers\Api\V1\FarmerUpdateController;
 use App\Http\Controllers\Api\V1\BaselineFormController;
 use App\Http\Controllers\Api\V1\UserTargetController;
+use App\Http\Controllers\Api\V1\NearbyPolygonController;
+use App\Http\Controllers\Api\V1\PipeController;
 
 
 /*
@@ -164,6 +166,13 @@ Route::post('upload_polygon',[\App\Http\Controllers\Api\V1\TestController2::clas
 
 Route::middleware(['auth:sanctum', 'check.user.status'])->group( function () {
   Route::prefix("V1")->group(function(){
+    Route::resource('pipe',PipeController::class);
+
+    Route::get('nearby-polygon',[NearbyPolygonController::class,'nearby']);
+    
+    Route::get('get-farmer-details',[FarmerController::class,'get_farmer_details']);
+    Route::post('submit-pipe-data',[PipeIntallationController::class,'submit_pipe_data']);
+
     Route::get('check-mobile-no',[FarmerController::class,'Check_mobile_no']);
     Route::post('logout',[AuthController::class,'logout']);
     Route::any('generateuniqueId',[AuthController::class,'generate_uniqueId']);
@@ -330,6 +339,8 @@ Route::middleware(['auth:sanctum', 'check.user.status'])->group( function () {
 
 
   Route::prefix("v2")->group(function(){
+
+    Route::resource('pipe',PipeController::class);
 
     Route::get('check/pipe/data',[App\Http\Controllers\Api\v2\PipeIntallationController::class,'check_pipe_data']);
     Route::get('pipe/plot/pipeno', [App\Http\Controllers\Api\v2\AerationController::class,'get_plot_pipe']);

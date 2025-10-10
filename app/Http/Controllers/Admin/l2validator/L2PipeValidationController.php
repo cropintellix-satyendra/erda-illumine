@@ -33,52 +33,55 @@ class L2PipeValidationController extends Controller
     public function search($status)
     {
         if($status == 'Pending'){
-            $plots = PipeInstallation::with('farmerapproved')->whereHas('farmerapproved',function($q){
+            $plots = Polygon::with('farmerapproved')->whereHas('farmerapproved',function($q){
 
                     return $q;
                   })
-                ->whereHas('pipe_image',function($im){
-                    $im->when('filter',function($c){
-                        $c->where('status','Approved');
-                        $c->where('l2status','Pending');
-                        return $c;
-                    });
-                    return $im;
-                })
+                // ->whereHas('pipe_image',function($im){
+                //     $im->when('filter',function($c){
+                //         $c->where('status','Approved');
+                //         $c->where('l2status','Pending');
+                //         return $c;
+                //     });
+                //     return $im;
+                // })
                 ->when('filter',function($w){
 
                 });
             return response()->json($plots->get());
 
         }elseif($status == 'Approved'){
-            $plots = PipeInstallation::with('farmerapproved')->whereHas('farmerapproved',function($q){
+            $plots = Polygon::with('farmerapproved')->whereHas('farmerapproved',function($q){
 
                     return $q;
                   })
-                ->whereHas('pipe_image',function($im){
-                    $im->when('filter',function($c){
-                        $c->where('l2status','Approved');
-                        return $c;
-                    });
-                    return $im;
-                })
+                // ->whereHas('pipe_image',function($im){
+                //     $im->when('filter',function($c){
+                //         $c->where('l2status','Approved');
+                //         return $c;
+                //     });
+                //     return $im;
+                // })
                 ->when('filter',function($w){
-                    $w->where('l2_status','Approved');
-                    $w->where('l2_apprv_reject_user_id',auth()->user()->id);
+                    $w->where('final_status','Approved');
+                    if(request()->has('query') && !empty(request('query'))){
+                        $w->where('farmer_plot_uniqueid','like','%'.request('query').'%');
+                    }
+                    // $w->where('l2_apprv_reject_user_id',auth()->user()->id);
                 });
             return response()->json($plots->get());
         }elseif($status == 'Rejected'){
-            $plots = PipeInstallation::with('farmerapproved')->whereHas('farmerapproved',function($q){
+            $plots = Polygon::with('farmerapproved')->whereHas('farmerapproved',function($q){
 
                     return $q;
                   })
-                ->whereHas('pipe_image',function($im){
-                    $im->when('filter',function($c){
-                        $c->where('l2status','Rejected');
-                        return $c;
-                    });
-                    return $im;
-                })
+                // ->whereHas('pipe_image',function($im){
+                //     $im->when('filter',function($c){
+                //         $c->where('l2status','Rejected');
+                //         return $c;
+                //     });
+                //     return $im;
+                // })
                 ->when('filter',function($w){
 
                 });
