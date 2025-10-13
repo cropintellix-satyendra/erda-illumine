@@ -19,7 +19,7 @@
                         @endcan
                     @else
                       @can('farmer')
-                        <li><a href="{!! url('admin/dashboard') !!}" class="ai-icon" aria-expanded="false">
+                        <li><a href="{!! url('admin/dashboard') !!}" class="ai-icon {{ request()->is('admin/dashboard') ? 'active' : '' }}" aria-expanded="{{ request()->is('admin/dashboard') ? 'true' : 'false' }}">
                                 <i class="flaticon-381-layer"></i>
                                 <span class="nav-text">Dashboard</span>
                             </a>
@@ -47,7 +47,7 @@
                       @else
                         @can('farmer')
                         <!-- for admin -->
-                          <li><a href="{!! url('admin/farmers/all-plot') !!}?page=1" class="ai-icon" aria-expanded="false">
+                          <li><a href="{!! url('admin/farmers/all-plot') !!}?page=1" class="ai-icon {{ request()->is('admin/farmers/*') ? 'active' : '' }}" aria-expanded="{{ request()->is('admin/farmers/*') ? 'true' : 'false' }}">
                                   <i class="flaticon-381-user-7"></i>
                                   <span class="nav-text">All Farmers</span>
                               </a>
@@ -465,11 +465,11 @@
                       </li>
                       
                         <li>
-                            <a class="has-arrow ai-icon" href="javascript:void(0);" aria-expanded="false">
+                            <a class="has-arrow ai-icon {{ request()->is('admin/users*') || request()->is('admin/verifier*') || request()->is('admin/viewer*') || request()->is('admin/company*') || request()->is('admin/notification*') || request()->is('admin/callerlist*') || request()->is('admin/list/admin*') || request()->is('admin/pipe/setting*') || request()->is('admin/roles*') || request()->is('admin/permissions*') || request()->is('admin/landownership*') || request()->is('admin/relationshipowner*') || request()->is('admin/cropvariety*') || request()->is('admin/terms-and-conditions*') || request()->is('admin/web/privacy/policy*') || request()->is('admin/season*') || request()->is('admin/questions*') || request()->is('admin/year*') || request()->is('admin/areation/date*') || request()->is('admin/gender*') || request()->is('admin/document_type*') || request()->is('admin/fertilizer*') || request()->is('admin/benefit*') || request()->is('admin/minimum/value*') || request()->is('admin/daily_target*') || request()->is('admin/app/settings*') || request()->is('admin/cropdata/settings*') || request()->is('admin/pipe/threshold/settings*') || request()->is('admin/app/dashboard*') || request()->is('admin/app/keys*') ? 'active' : '' }}" href="javascript:void(0);" aria-expanded="{{ request()->is('admin/users*') || request()->is('admin/verifier*') || request()->is('admin/viewer*') || request()->is('admin/company*') || request()->is('admin/notification*') || request()->is('admin/callerlist*') || request()->is('admin/list/admin*') || request()->is('admin/pipe/setting*') || request()->is('admin/roles*') || request()->is('admin/permissions*') || request()->is('admin/landownership*') || request()->is('admin/relationshipowner*') || request()->is('admin/cropvariety*') || request()->is('admin/terms-and-conditions*') || request()->is('admin/web/privacy/policy*') || request()->is('admin/season*') || request()->is('admin/questions*') || request()->is('admin/year*') || request()->is('admin/areation/date*') || request()->is('admin/gender*') || request()->is('admin/document_type*') || request()->is('admin/fertilizer*') || request()->is('admin/benefit*') || request()->is('admin/minimum/value*') || request()->is('admin/daily_target*') || request()->is('admin/app/settings*') || request()->is('admin/cropdata/settings*') || request()->is('admin/pipe/threshold/settings*') || request()->is('admin/app/dashboard*') || request()->is('admin/app/keys*') ? 'true' : 'false' }}">
                             <i class="flaticon-381-settings-2"></i>
                             <span class="nav-text">Settings</span>
                             </a>
-                            <ul aria-expanded="false">
+                            <ul aria-expanded="{{ request()->is('admin/users*') || request()->is('admin/verifier*') || request()->is('admin/viewer*') || request()->is('admin/company*') || request()->is('admin/notification*') || request()->is('admin/callerlist*') || request()->is('admin/list/admin*') || request()->is('admin/pipe/setting*') || request()->is('admin/roles*') || request()->is('admin/permissions*') || request()->is('admin/landownership*') || request()->is('admin/relationshipowner*') || request()->is('admin/cropvariety*') || request()->is('admin/terms-and-conditions*') || request()->is('admin/web/privacy/policy*') || request()->is('admin/season*') || request()->is('admin/questions*') || request()->is('admin/year*') || request()->is('admin/areation/date*') || request()->is('admin/gender*') || request()->is('admin/document_type*') || request()->is('admin/fertilizer*') || request()->is('admin/benefit*') || request()->is('admin/minimum/value*') || request()->is('admin/daily_target*') || request()->is('admin/app/settings*') || request()->is('admin/cropdata/settings*') || request()->is('admin/pipe/threshold/settings*') || request()->is('admin/app/dashboard*') || request()->is('admin/app/keys*') ? 'true' : 'false' }}">
                                 <li><a href="{!! route('admin.users.index') !!}">Users</a></li>
                                 <!-- <li><a href="{!! route('admin.validator.index') !!}">L-1 Validator</a></li> -->
                                 <li><a href="{!! route('admin.verifier.index') !!}">Validator</a></li>
@@ -506,6 +506,26 @@
                                 <li class='nav-item'><a class='nav-link' href="{{ backpack_url('backup') }}">Backups</a></li>
                                 {{--<li><a href="{!! url('admin/company/terms-and-conditions'); !!}">Term and Condition</a></li>--}}
                             </ul>
+                        </li>
+
+                        <li>
+                            <a class="has-arrow ai-icon {{ request()->is('admin/kml/*') ? 'active' : '' }}" href="javascript:void(0);" aria-expanded="{{ request()->is('admin/kml/*') ? 'true' : 'false' }}">
+                            <i class="flaticon-381-location-2"></i>
+                            <span class="nav-text">KML Reader</span>
+                            </a>
+                            <ul aria-expanded="{{ request()->is('admin/kml/*') ? 'true' : 'false' }}">
+                                <li><a href="{!! url('admin/kml/upload') !!}" class="{{ request()->is('admin/kml/upload') ? 'active' : '' }}">Upload KML</a></li>
+                                <li><a href="{!! url('admin/kml/list') !!}" class="{{ request()->is('admin/kml/list') ? 'active' : '' }}">KML Files</a></li>
+                                <li><a href="{!! url('admin/kml/viewer') !!}" class="{{ request()->is('admin/kml/viewer') ? 'active' : '' }}">KML Viewer</a></li>
+                                <li><a href="{!! url('admin/kml/analyze') !!}" class="{{ request()->is('admin/kml/analyze') ? 'active' : '' }}">Analyze Polygon</a></li>
+                            </ul>
+                        </li>
+
+                        <li>
+                            <a href="{{ route('admin.api-logs.index') }}" class="ai-icon {{ request()->routeIs('admin.api-logs.*') ? 'active' : '' }}" aria-expanded="{{ request()->routeIs('admin.api-logs.*') ? 'true' : 'false' }}">
+                                <i class="flaticon-381-network"></i>
+                                <span class="nav-text">API Logs</span>
+                            </a>
                         </li>
                     @endif
                 </ul>

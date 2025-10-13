@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\l2validator\L2CropDataValidationController;
 use App\Http\Controllers\Admin\l1validator\BenefitValidationController;
 use App\Http\Controllers\Admin\l2validator\L2BenefitValidationController;
 use App\Http\Controllers\Admin\l1validator\ReportController;
+use App\Http\Controllers\Admin\KmlController;
 
 /*
 |--------------------------------------------------------------------------
@@ -54,6 +55,23 @@ Route::post('/store_req_delete_account',function(Request $request){
 
 Route::middleware(['web','auth'])->group( function(){
     
+    // KML Routes
+    Route::prefix("admin")->group(function(){
+        Route::get('kml/viewer', [KmlController::class, 'viewer'])->name('admin.kml.viewer');
+        Route::get('kml/upload', [KmlController::class, 'upload'])->name('admin.kml.upload');
+        Route::post('kml/store', [KmlController::class, 'store'])->name('admin.kml.store');
+        Route::get('kml/list', [KmlController::class, 'list'])->name('admin.kml.list');
+        Route::get('kml/analyze', [KmlController::class, 'analyze'])->name('admin.kml.analyze');
+        Route::get('kml/compare/{filename}', [KmlController::class, 'compareKml'])->name('admin.kml.compare');
+        Route::delete('kml/delete/{filename}', [KmlController::class, 'delete'])->name('admin.kml.delete');
+        Route::get('kml/content/{filename}', [KmlController::class, 'getKmlContent'])->name('admin.kml.content');
+        
+        // API Logs Routes
+        Route::get('api-logs', [\App\Http\Controllers\Admin\ApiLogController::class, 'index'])->name('admin.api-logs.index');
+        Route::get('api-logs/{id}', [\App\Http\Controllers\Admin\ApiLogController::class, 'show'])->name('admin.api-logs.show');
+        Route::delete('api-logs/{id}', [\App\Http\Controllers\Admin\ApiLogController::class, 'destroy'])->name('admin.api-logs.destroy');
+        Route::post('api-logs/delete-old', [\App\Http\Controllers\Admin\ApiLogController::class, 'deleteOld'])->name('admin.api-logs.delete-old');
+    });
   
   Route::prefix("{accessrole}/view")->group(function(){
     //of l1
