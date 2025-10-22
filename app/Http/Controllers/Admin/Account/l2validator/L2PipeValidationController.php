@@ -10,6 +10,7 @@ use App\Models\PipeInstallationPipeImg;
 use App\Models\PipeImgValidation;
 use App\Models\FarmerBenefitImage;
 use App\Models\RejectModule;
+use App\Models\FarmerCropdata;
 use Maatwebsite\Excel\Facades\Excel;
 use Carbon\Carbon;
 use Auth;
@@ -1616,6 +1617,513 @@ class L2PipeValidationController extends Controller
         }
     return view('admin.l2validator.pipe.polygon-reject-plot-pipe',compact('plot','PipeInstallation','check_pipedata','PipesLocation','cropdata','Polygon','page_title','page_description','action','farmerplots','farmerplot',
                 'reject_module','farmerbenefitimg','updated_polygon','validation_list','percent_error'));
+  }
+
+  /**
+   * Display polygon map view (All polygons on map) - Admin/Viewer
+   *
+   * @return \Illuminate\Http\Response
+   */
+  public function polygon_map_view(Request $request)
+  {
+    // Get pagination parameters
+    $perPage = $request->get('per_page', 50); // Default 50 polygons per page
+    $page = $request->get('page', 1);
+    
+    // Cache key based on user role, location, and pagination
+    $cacheKey = 'polygon_map_data_' . auth()->user()->id . '_' . auth()->user()->roles->first()->name . '_page_' . $page . '_per_' . $perPage;
+    
+    // Try to get data from cache first (cache for 5 minutes)
+    $cachedData = cache()->remember($cacheKey, 300, function() use ($perPage, $page) {
+        // Optimized query with eager loading to prevent N+1 queries
+        $query = Polygon::with([
+            'farmerapproved.state',
+            'farmerapproved.district', 
+            'farmerapproved.village'
+        ])
+        ->whereHas('farmerapproved', function($q){
+            if(auth()->user()->hasRole('Viewer')){
+                $VendorLocation = DB::table('viewer_locations')->where('user_id', auth()->user()->id)->first();
+                if($VendorLocation) {
+                    $q->whereIn('state_id', explode(',', $VendorLocation->state));
+                    if(!empty($VendorLocation->district)){
+                       $q->whereIn('district_id', explode(',', $VendorLocation->district));
+                    }
+                    if(!empty($VendorLocation->taluka)){
+                       $q->whereIn('taluka_id', explode(',', $VendorLocation->taluka));
+                    }
+                }
+            }
+            return $q;
+        })
+        ->whereNotNull('ranges')
+        ->where('ranges', '!=', '')
+        ->where('ranges', '!=', '[]')
+        ->select('id', 'farmer_plot_uniqueid', 'final_status', 'plot_area', 'ranges', 'farmer_id');
+
+        // Get total count for pagination
+        $totalCount = $query->count();
+        
+        // Apply pagination
+        $polygons = $query->skip(($page - 1) * $perPage)
+                         ->take($perPage)
+                         ->get();
+
+        // Optimized data preparation
+        $polygonData = [];
+        foreach($polygons as $polygon) {
+            if($polygon->farmerapproved) {
+                $ranges = json_decode($polygon->ranges, true);
+                if($ranges && is_array($ranges) && count($ranges) > 0) {
+                    $polygonData[] = [
+                        'id' => $polygon->id,
+                        'farmer_plot_uniqueid' => $polygon->farmer_plot_uniqueid,
+                        'farmer_name' => $polygon->farmerapproved->farmer_name ?? 'N/A',
+                        'farmer_id' => $polygon->farmerapproved->farmer_uniqueId ?? 'N/A',
+                        'status' => $polygon->final_status ?? 'N/A',
+                        'area' => $polygon->plot_area ?? 'N/A',
+                        'coordinates' => $ranges,
+                        'state' => $polygon->farmerapproved->state->name ?? 'N/A',
+                        'district' => $polygon->farmerapproved->district->name ?? 'N/A',
+                        'village' => $polygon->farmerapproved->village->name ?? 'N/A'
+                    ];
+                }
+            }
+        }
+        
+        return [
+            'data' => $polygonData,
+            'total' => $totalCount,
+            'per_page' => $perPage,
+            'current_page' => $page,
+            'last_page' => ceil($totalCount / $perPage)
+        ];
+    });
+
+    $polygonData = $cachedData['data'];
+    $pagination = [
+        'total' => $cachedData['total'],
+        'per_page' => $cachedData['per_page'],
+        'current_page' => $cachedData['current_page'],
+        'last_page' => $cachedData['last_page'],
+        'from' => (($cachedData['current_page'] - 1) * $cachedData['per_page']) + 1,
+        'to' => min($cachedData['current_page'] * $cachedData['per_page'], $cachedData['total'])
+    ];
+
+    $page_title = 'Polygon Map View';
+    $page_description = 'All Polygons on Google Map';
+    $action = 'map_view';
+    
+    return view('admin.l2validator.pipe.polygon-map-view', compact('polygonData', 'pagination', 'page_title', 'page_description', 'action'));
+  }
+
+  /**
+   * Display all polygon lists (All statuses) - Admin/Viewer
+   *
+   * @return \Illuminate\Http\Response
+   */
+  public function all_polygon_list()
+  {
+    $plots = Polygon::with('farmerapproved')->whereHas('farmerapproved',function($q){
+        if(auth()->user()->hasRole('Viewer')){
+            $VendorLocation = DB::table('viewer_locations')->where('user_id',auth()->user()->id)->first();
+            $q->whereIn('state_id',explode(',',$VendorLocation->state));
+            if(!empty($VendorLocation->district)){
+               $q->whereIn('district_id',explode(',',$VendorLocation->district));
+            }
+            if(!empty($VendorLocation->taluka)){
+               $q->whereIn('taluka_id',explode(',',$VendorLocation->taluka));
+            }
+            return $q;
+        }
+        return $q;
+    })
+    ->whereNotNull('ranges')
+    ->orderBy('id','desc')
+    ->paginate(20);
+
+    $page_title = 'Polygon | All Lists';
+    $page_description = 'Polygon | All Lists';
+    $action = 'table_farmer';
+    
+    return view('admin.l2validator.pipe.polygon-all-plot',compact('plots','page_title','page_description','action'));
+  }
+
+  /**
+   * Alternative method to handle plot detail with proper parameter extraction
+   */
+  public function polygon_all_detail_fixed($accessrole)
+  {
+    // Extract plot ID from URL segments
+    $segments = request()->segments();
+    $plotuniqueid = end($segments); // Get last segment as plot ID
+    
+    // DEBUG: Show what we extracted
+    dd([
+      'plotuniqueid' => $plotuniqueid,
+      'segments' => $segments,
+      'url' => request()->url(),
+      'path' => request()->path(),
+      'step' => 'Fixed parameter extraction',
+      'timestamp' => now()
+    ]);
+    
+    // Now proceed with the actual logic
+    $check_pipedata = DB::table('polygons')->where('farmer_plot_uniqueid',$plotuniqueid)->first();
+    $PipeInstallation  = Polygon::where('farmer_plot_uniqueid', $plotuniqueid)->first();
+    
+    if (!$PipeInstallation) {
+        return redirect()->back()->with('error', 'Plot not found with ID: ' . $plotuniqueid);
+    }
+    
+    // Rest of the method logic...
+    return $this->polygon_all_detail($plotuniqueid);
+  }
+
+  /**
+   * Debug method to check plot existence for move to pending
+   */
+  public function debug_move_to_pending($accessrole, $plotuniqueid)
+  {
+      $debug_info = [
+          'plotuniqueid' => $plotuniqueid,
+          'timestamp' => now(),
+          'user_info' => [
+              'user_id' => auth()->user()->id,
+              'user_name' => auth()->user()->name,
+              'user_roles' => auth()->user()->roles->pluck('name')
+          ],
+          'database_checks' => []
+      ];
+
+      // Check polygons table
+      $debug_info['database_checks']['polygons'] = [
+          'total_count' => DB::table('polygons')->count(),
+          'exact_match' => DB::table('polygons')->where('farmer_plot_uniqueid', $plotuniqueid)->first(),
+          'count_match' => DB::table('polygons')->where('farmer_plot_uniqueid', $plotuniqueid)->count(),
+          'similar_ids' => DB::table('polygons')->where('farmer_plot_uniqueid', 'LIKE', '%' . substr($plotuniqueid, -3) . '%')->select('farmer_plot_uniqueid', 'id', 'final_status', 'l2_status')->limit(5)->get(),
+          'all_ids_sample' => DB::table('polygons')->select('farmer_plot_uniqueid', 'id', 'final_status', 'l2_status')->limit(10)->get()
+      ];
+
+      // Check final_farmers table
+      $debug_info['database_checks']['final_farmers'] = [
+          'total_count' => DB::table('final_farmers')->count(),
+          'exact_match' => DB::table('final_farmers')->where('farmer_plot_uniqueid', $plotuniqueid)->first(),
+          'count_match' => DB::table('final_farmers')->where('farmer_plot_uniqueid', $plotuniqueid)->count()
+      ];
+
+      // Check pipe_installations table
+      $debug_info['database_checks']['pipe_installations'] = [
+          'total_count' => DB::table('pipe_installations')->count(),
+          'exact_match' => DB::table('pipe_installations')->where('farmer_plot_uniqueid', $plotuniqueid)->first(),
+          'count_match' => DB::table('pipe_installations')->where('farmer_plot_uniqueid', $plotuniqueid)->count()
+      ];
+
+      // Check for similar plot IDs
+      $debug_info['similar_plots'] = DB::table('polygons')
+          ->where('farmer_plot_uniqueid', 'LIKE', '%' . substr($plotuniqueid, -2) . '%')
+          ->select('farmer_plot_uniqueid', 'id', 'final_status', 'l2_status')
+          ->limit(10)
+          ->get();
+
+      // Log the debug info
+      \Log::info('Debug Move to Pending', $debug_info);
+
+      return response()->json($debug_info, 200, [], JSON_PRETTY_PRINT);
+  }
+
+  /**
+   * Debug method to check plot existence
+   */
+  public function debug_plot($accessrole, $plotuniqueid)
+  {
+    $debug_info = [
+      'plotuniqueid' => $plotuniqueid,
+      'timestamp' => now(),
+      'database_checks' => []
+    ];
+
+    // Check polygons table
+    $debug_info['database_checks']['polygons'] = [
+      'total_count' => DB::table('polygons')->count(),
+      'exact_match' => DB::table('polygons')->where('farmer_plot_uniqueid', $plotuniqueid)->first(),
+      'count_match' => DB::table('polygons')->where('farmer_plot_uniqueid', $plotuniqueid)->count(),
+      'similar_ids' => DB::table('polygons')->where('farmer_plot_uniqueid', 'LIKE', '%' . substr($plotuniqueid, -3) . '%')->select('farmer_plot_uniqueid')->limit(5)->get(),
+      'all_ids_sample' => DB::table('polygons')->select('farmer_plot_uniqueid')->limit(10)->get()
+    ];
+
+    // Check final_farmers table
+    $debug_info['database_checks']['final_farmers'] = [
+      'total_count' => DB::table('final_farmers')->count(),
+      'exact_match' => DB::table('final_farmers')->where('farmer_plot_uniqueid', $plotuniqueid)->first(),
+      'count_match' => DB::table('final_farmers')->where('farmer_plot_uniqueid', $plotuniqueid)->count()
+    ];
+
+    // Check farmer_plot_detail table
+    $debug_info['database_checks']['farmer_plot_detail'] = [
+      'total_count' => DB::table('farmer_plot_detail')->count(),
+      'exact_match' => DB::table('farmer_plot_detail')->where('farmer_plot_uniqueid', $plotuniqueid)->first(),
+      'count_match' => DB::table('farmer_plot_detail')->where('farmer_plot_uniqueid', $plotuniqueid)->count()
+    ];
+
+    // Check for similar plot IDs
+    $debug_info['similar_plots'] = DB::table('polygons')
+      ->where('farmer_plot_uniqueid', 'LIKE', '%' . substr($plotuniqueid, -2) . '%')
+      ->select('farmer_plot_uniqueid', 'id', 'final_status')
+      ->limit(10)
+      ->get();
+
+    return response()->json($debug_info, 200, [], JSON_PRETTY_PRINT);
+  }
+
+  /**
+   * Display all polygon detail (All statuses) - Admin/Viewer
+   *
+   * @return \Illuminate\Http\Response
+   */
+  public function polygon_all_detail($accessrole, $plotuniqueid)
+  {
+    // DEBUG: Quick check to verify parameters
+    if ($plotuniqueid === 'admin') {
+      dd([
+        'error' => 'Parameter order issue detected',
+        'accessrole' => $accessrole,
+        'plotuniqueid' => $plotuniqueid,
+        'route_parameters' => request()->route()->parameters(),
+        'segments' => request()->segments(),
+        'fix_needed' => 'Method signature needs to be: polygon_all_detail($accessrole, $plotuniqueid)'
+      ]);
+    }
+    
+    $check_pipedata = DB::table('polygons')->where('farmer_plot_uniqueid',$plotuniqueid)->first();
+    $PipeInstallation  = Polygon::where('farmer_plot_uniqueid', $plotuniqueid)->first();
+    
+    // Check if plot exists in polygons table first
+    if (!$PipeInstallation) {
+        return redirect()->back()->with('error', 'Plot not found with ID: ' . $plotuniqueid);
+    }
+    
+    // Try to get plot from FinalFarmer table, if not found, create a basic plot object
+    $plot = FinalFarmer::with('ApprvFarmerPlot')->where('farmer_plot_uniqueid',$plotuniqueid)->first();
+    
+    // If plot not found in FinalFarmer, create a basic plot object from polygon data
+    if (!$plot) {
+        $plot = (object) [
+            'farmer_uniqueId' => $PipeInstallation->farmer_uniqueId ?? 'N/A',
+            'farmer_name' => $PipeInstallation->farmer_name ?? 'N/A',
+            'farmer_plot_uniqueid' => $plotuniqueid,
+            'mobile' => $PipeInstallation->mobile ?? 'N/A',
+            'area_in_acers' => $PipeInstallation->area_in_acers ?? 0,
+            'state_id' => $PipeInstallation->state_id ?? null,
+            'district_id' => $PipeInstallation->district_id ?? null,
+            'taluka_id' => $PipeInstallation->taluka_id ?? null,
+            'village_id' => $PipeInstallation->village_id ?? null,
+            'total_area_acres_of_guntha' => 0
+        ];
+    }
+    
+    $farmerplots =  FinalFarmer::where('farmer_plot_uniqueid',$plotuniqueid)->get();
+    $farmerplots_area =  FinalFarmer::where('farmer_uniqueId',$plot->farmer_uniqueId)->get();
+
+    $PipesLocation = PipeInstallationPipeImg::with('reject_reason','reject_validation_detail')->where('l2trash',0)
+                        ->where('farmer_plot_uniqueid',$plotuniqueid)->get();
+
+    $validation_list = PipeImgValidation::where('farmer_plot_uniqueid',$plotuniqueid)->where('level','L-2-Validator')->get();
+    $Polygon = $PipeInstallation ? json_decode($PipeInstallation->ranges) : null;
+    $cropdata=FarmerCropdata::with('PlotCropDetails')->where('farmer_plot_uniqueid',$plotuniqueid)->get();
+    $farmerplot=DB::table('farmer_plot_detail')->where('farmer_plot_uniqueid',$plotuniqueid)->first();
+    $farmerbenefitimg = FarmerBenefitImage::select('farmer_uniqueId','path')->where('farmer_uniqueId',$plot->farmer_uniqueId)->get();
+    $updated_polygon = DB::table('old_polygons')->where('farmer_plot_uniqueid',$plotuniqueid)->select('polygon')->get();
+    $reject_module = RejectModule::where('type','PipeInstallation')->where('id',10)->get();
+    
+    $page_title = 'Polygon | All Detail';
+    $page_description = 'Polygon | All Detail';
+    $action = 'table_farmer';
+    $guntha = 0.025000;
+    
+    if($plot && $plot->state_id == 36){
+        $area = number_format((float)$plot->area_in_acers, 2, '.', '');
+        $split = explode('.', $area);
+        $valueafterdecimal = (isset($split[1]) && $split[1])?$split[1]:0;
+        $result = $valueafterdecimal*$guntha;
+        $conversion = explode('.', $result);
+        $conversion = $conversion[1]??0;
+        $acers = $split[0].'.'.$conversion;
+        $plot->convertedacres = $acers;
+
+        if($farmerplots){
+            $total_area_acres  = 0;
+            foreach($farmerplots_area as $plots){
+                $area = number_format((float)$plots->area_in_acers, 2, '.', '');
+                $split = explode('.', $area);
+                $valueafterdecimal = (isset($split[1]) && $split[1])?$split[1]:0;
+                $result = $valueafterdecimal*$guntha;
+                $conversion = explode('.', $result);
+                $conversion = $conversion[1]??0;
+                $acers = $split[0].'.'.$conversion;
+                $total_area_acres+=$acers;
+            }
+            $plot->total_area_acres_of_guntha = $total_area_acres;
+        }
+    }
+    
+    $percent_error = "0.0";
+    if($PipeInstallation && $PipeInstallation->area_in_acers){
+        $mod =  abs($PipeInstallation->area_in_acers - $PipeInstallation->plot_area);
+        $denominator = $PipeInstallation->area_in_acers;
+        $percent_error = 100 * $mod/$denominator;
+    }
+    
+    return view('admin.l2validator.pipe.polygon-all-plot-detail',compact('plot','PipeInstallation','check_pipedata','PipesLocation','cropdata','Polygon','page_title','page_description','action','farmerplots','farmerplot',
+                'reject_module','farmerbenefitimg','updated_polygon','validation_list','percent_error','plotuniqueid'));
+  }
+
+  /**
+   * Move polygon from approved to pending status
+   *
+   * @param string $plotuniqueid
+   * @return \Illuminate\Http\JsonResponse
+   */
+  public function movePolygonToPending($accessrole, $plotuniqueid)
+  {
+      try {
+          // DEBUG: Log the request
+          \Log::info('Move to Pending Request', [
+              'plot_unique_id' => $plotuniqueid,
+              'user_id' => auth()->user()->id,
+              'user_name' => auth()->user()->name,
+              'user_roles' => auth()->user()->roles->pluck('name'),
+              'timestamp' => now(),
+              'url' => request()->url(),
+              'method' => request()->method()
+          ]);
+
+          // Check if user has permission
+          if (!auth()->user()->hasRole('L-2-Validator')) {
+              \Log::warning('Permission denied for move to pending', [
+                  'plot_unique_id' => $plotuniqueid,
+                  'user_id' => auth()->user()->id,
+                  'user_roles' => auth()->user()->roles->pluck('name')
+              ]);
+              return response()->json([
+                  'success' => false,
+                  'message' => 'You do not have permission to perform this action.'
+              ], 403);
+          }
+
+          // DEBUG: Check database for polygon
+          $polygon = Polygon::where('farmer_plot_uniqueid', $plotuniqueid)->first();
+          
+          // DEBUG: Log database check results
+          \Log::info('Polygon Database Check', [
+              'plot_unique_id' => $plotuniqueid,
+              'polygon_found' => $polygon ? true : false,
+              'polygon_id' => $polygon ? $polygon->id : null,
+              'polygon_status' => $polygon ? $polygon->final_status : null,
+              'polygon_l2_status' => $polygon ? $polygon->l2_status : null,
+              'total_polygons_count' => Polygon::count(),
+              'similar_plots' => Polygon::where('farmer_plot_uniqueid', 'LIKE', '%' . substr($plotuniqueid, -3) . '%')
+                  ->select('farmer_plot_uniqueid', 'id', 'final_status')
+                  ->limit(5)
+                  ->get()
+          ]);
+          
+          if (!$polygon) {
+              \Log::error('Polygon not found in database', [
+                  'plot_unique_id' => $plotuniqueid,
+                  'searched_table' => 'polygons',
+                  'search_column' => 'farmer_plot_uniqueid',
+                  'total_polygons' => Polygon::count(),
+                  'sample_plot_ids' => Polygon::select('farmer_plot_uniqueid')->limit(10)->get()
+              ]);
+              return response()->json([
+                  'success' => false,
+                  'message' => 'Polygon record not found.',
+                  'debug_info' => [
+                      'plot_id' => $plotuniqueid,
+                      'total_polygons' => Polygon::count(),
+                      'sample_ids' => Polygon::select('farmer_plot_uniqueid')->limit(5)->get()
+                  ]
+              ], 404);
+          }
+
+          // Check if polygon is currently approved
+          // Check both l2_status and final_status for approved status
+          $isApproved = ($polygon->l2_status === 'Approved') || 
+                       ($polygon->final_status === 'Approved') ||
+                       (($polygon->l2_status === null || $polygon->l2_status === '') && $polygon->final_status === 'Approved');
+          
+          \Log::info('Polygon Status Check', [
+              'plot_unique_id' => $plotuniqueid,
+              'l2_status' => $polygon->l2_status,
+              'final_status' => $polygon->final_status,
+              'is_approved' => $isApproved,
+              'check_logic' => 'l2_status=Approved OR final_status=Approved OR (l2_status=null AND final_status=Approved)'
+          ]);
+          
+          if (!$isApproved) {
+              \Log::warning('Polygon not approved for move to pending', [
+                  'plot_unique_id' => $plotuniqueid,
+                  'l2_status' => $polygon->l2_status,
+                  'final_status' => $polygon->final_status,
+                  'current_statuses' => [
+                      'l2_status' => $polygon->l2_status,
+                      'final_status' => $polygon->final_status
+                  ]
+              ]);
+              return response()->json([
+                  'success' => false,
+                  'message' => 'Only approved polygons can be moved to pending status.',
+                  'debug_info' => [
+                      'l2_status' => $polygon->l2_status,
+                      'final_status' => $polygon->final_status,
+                      'plot_id' => $plotuniqueid
+                  ]
+              ], 400);
+          }
+
+          // Update polygon status to pending
+          $polygon->update([
+              'l2_status' => 'Pending',
+              'final_status' => 'Pending',
+              'l2_apprv_reject_user_id' => auth()->user()->id,
+              'l2_apprv_reject_timestamp' => now(),
+              'updated_at' => now()
+          ]);
+
+          // Update pipe installation images status to pending
+          PipeInstallationPipeImg::where('farmer_plot_uniqueid', $plotuniqueid)
+              ->where('l2trash', 0)
+              ->update([
+                  'l2status' => 'Pending',
+                  'updated_at' => now()
+              ]);
+
+          // Log the action
+          \Log::info('Polygon moved from Approved to Pending', [
+              'plot_unique_id' => $plotuniqueid,
+              'user_id' => auth()->user()->id,
+              'user_name' => auth()->user()->name,
+              'timestamp' => now()
+          ]);
+
+          return response()->json([
+              'success' => true,
+              'message' => 'Polygon successfully moved from Approved to Pending status.'
+          ]);
+
+      } catch (\Exception $e) {
+          \Log::error('Error moving polygon to pending: ' . $e->getMessage(), [
+              'plot_unique_id' => $plotuniqueid,
+              'user_id' => auth()->user()->id,
+              'error' => $e->getMessage()
+          ]);
+
+          return response()->json([
+              'success' => false,
+              'message' => 'An error occurred while moving the polygon to pending status.'
+          ], 500);
+      }
   }
 
 }
